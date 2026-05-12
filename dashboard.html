@@ -1,0 +1,3151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能体平台态势感知 Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* ========== 全局基础样式 ========== */
+    :root {
+      --bg-primary: #0a0e17;
+      --bg-secondary: #111827;
+      --bg-card: rgba(17, 24, 39, 0.7);
+      --border-card: rgba(0, 212, 255, 0.15);
+      --accent-cyan: #00d4ff;
+      --accent-cyan-dim: rgba(0, 212, 255, 0.3);
+      --accent-orange: #ff6b35;
+      --accent-orange-dim: rgba(255, 107, 53, 0.3);
+      --accent-green: #00ff88;
+      --accent-purple: #a855f7;
+      --accent-yellow: #fbbf24;
+      --text-primary: #e5e7eb;
+      --text-secondary: #9ca3af;
+      --text-dim: #6b7280;
+      --glass-bg: rgba(17, 24, 39, 0.6);
+      --glass-border: rgba(255, 255, 255, 0.08);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* 背景网格效果 */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background:
+        radial-gradient(ellipse at 20% 50%, rgba(0, 212, 255, 0.03) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(168, 85, 247, 0.03) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 80%, rgba(255, 107, 53, 0.02) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .dashboard-container {
+      position: relative;
+      z-index: 1;
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    /* ========== 玻璃拟态卡片 ========== */
+    .glass-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .glass-card:hover {
+      border-color: var(--border-card);
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.05);
+    }
+
+    /* ========== 标题样式 ========== */
+    .section-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title::before {
+      content: '';
+      display: inline-block;
+      width: 3px;
+      height: 16px;
+      background: var(--accent-cyan);
+      border-radius: 2px;
+    }
+
+    /* ========== KPI 卡片 ========== */
+    .kpi-card {
+      padding: 20px 24px;
+      text-align: center;
+    }
+    .kpi-value {
+      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+      font-size: 2.5rem;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .kpi-label {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* ========== 表格样式 ========== */
+    .data-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 0.85rem;
+    }
+    .data-table thead th {
+      background: rgba(0, 212, 255, 0.08);
+      color: var(--accent-cyan);
+      font-weight: 600;
+      padding: 10px 12px;
+      text-align: left;
+      white-space: nowrap;
+      border-bottom: 1px solid var(--border-card);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .data-table tbody tr {
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .data-table tbody tr:hover {
+      background: rgba(0, 212, 255, 0.05);
+    }
+    .data-table tbody td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      color: var(--text-primary);
+      vertical-align: middle;
+    }
+    .data-table .detail-row td {
+      padding: 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .detail-content {
+      padding: 16px 20px;
+      background: rgba(0, 212, 255, 0.03);
+      border-left: 3px solid var(--accent-cyan);
+      display: none;
+    }
+    .detail-content.open { display: block; }
+
+    /* ========== 标签/徽章 ========== */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+    }
+    .badge-ecosystem { background: rgba(0, 212, 255, 0.15); color: #00d4ff; }
+    .badge-professional { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+    .badge-emerging { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+    .badge-native { background: rgba(0, 255, 136, 0.15); color: #00ff88; }
+    .badge-partial { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+    .badge-none { background: rgba(107, 114, 128, 0.15); color: #9ca3af; }
+    .badge-planned { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+    .badge-supported { background: rgba(0, 255, 136, 0.15); color: #00ff88; }
+    .badge-limited { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+    .badge-international { background: rgba(0, 212, 255, 0.15); color: #00d4ff; }
+    .badge-domestic { background: rgba(255, 107, 53, 0.15); color: #ff6b35; }
+    .badge-deploy { background: rgba(255,255,255,0.06); color: var(--text-secondary); }
+
+    /* ========== 时间线 ========== */
+    .timeline-item {
+      position: relative;
+      padding-left: 24px;
+      padding-bottom: 16px;
+      border-left: 2px solid rgba(0, 212, 255, 0.2);
+      transition: border-color 0.2s;
+    }
+    .timeline-item:hover { border-left-color: var(--accent-cyan); }
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -5px;
+      top: 6px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 6px var(--accent-cyan-dim);
+    }
+    .timeline-date {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+    }
+    .timeline-platform {
+      font-size: 0.72rem;
+      color: var(--accent-cyan);
+      font-weight: 600;
+    }
+    .timeline-title {
+      font-size: 0.85rem;
+      color: var(--text-primary);
+      margin: 2px 0;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .timeline-title:hover { color: var(--accent-cyan); }
+    .timeline-summary {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      display: none;
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+    .timeline-summary.open { display: block; }
+    .timeline-source {
+      font-size: 0.7rem;
+    }
+    .timeline-source a {
+      color: var(--accent-cyan);
+      text-decoration: none;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+    }
+    .timeline-source a:hover { opacity: 1; text-decoration: underline; }
+
+    /* ========== 筛选按钮 ========== */
+    .filter-btn {
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .filter-btn:hover {
+      border-color: var(--accent-cyan-dim);
+      color: var(--accent-cyan);
+    }
+    .filter-btn.active {
+      background: rgba(0, 212, 255, 0.12);
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    /* ========== 图表容器 ========== */
+    .chart-container {
+      position: relative;
+      width: 100%;
+    }
+
+    /* ========== 气泡图工具提示 ========== */
+    #landscapeTooltip {
+      position: absolute;
+      display: none;
+      background: rgba(10, 14, 23, 0.95);
+      border: 1px solid var(--accent-cyan-dim);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.8rem;
+      pointer-events: none;
+      z-index: 100;
+      max-width: 280px;
+      backdrop-filter: blur(8px);
+    }
+    #landscapeTooltip .tip-name {
+      font-weight: 700;
+      color: var(--accent-cyan);
+      margin-bottom: 4px;
+    }
+    #landscapeTooltip .tip-row {
+      color: var(--text-secondary);
+      margin: 2px 0;
+    }
+
+    /* ========== 滚动条美化 ========== */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(0, 212, 255, 0.2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(0, 212, 255, 0.4); }
+
+    /* ========== 顶部标题栏 ========== */
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(0, 212, 255, 0.1);
+    }
+    .header-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #00d4ff, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header-subtitle {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      color: var(--accent-green);
+    }
+    .header-status .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 4px var(--accent-green); }
+      50% { opacity: 0.5; box-shadow: 0 0 8px var(--accent-green); }
+    }
+
+    /* ========== 响应式 ========== */
+    @media (max-width: 1024px) {
+      .kpi-value { font-size: 2rem; }
+      .dashboard-container { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="dashboard-container">
+  <!-- ========== 顶部标题栏 ========== -->
+  <div class="header-bar">
+    <div>
+      <div class="header-title">智能体平台态势感知</div>
+      <div class="header-subtitle">Agent Platform Situational Awareness Dashboard · V1</div>
+    </div>
+    <div class="header-status">
+      <span class="dot"></span>
+      <span id="lastUpdateTime">实时监控中</span>
+    </div>
+  </div>
+
+  <!-- ========== 1. KPI 概览条 ========== -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="glass-card kpi-card">
+      <div class="kpi-value" style="color: var(--accent-cyan);" id="kpiTotal">0</div>
+      <div class="kpi-label">平台总数</div>
+    </div>
+    <div class="glass-card kpi-card">
+      <div class="kpi-value" style="color: #60a5fa;" id="kpiInternational">0</div>
+      <div class="kpi-label">国际平台</div>
+    </div>
+    <div class="glass-card kpi-card">
+      <div class="kpi-value" style="color: var(--accent-orange);" id="kpiDomestic">0</div>
+      <div class="kpi-label">国内平台</div>
+    </div>
+    <div class="glass-card kpi-card">
+      <div class="kpi-value" style="color: var(--accent-green);" id="kpiMCP">0</div>
+      <div class="kpi-label">MCP 原生支持</div>
+    </div>
+  </div>
+
+  <!-- ========== 主内容区 ========== -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <!-- 2. 格局全景图（气泡图）占 2 列 -->
+    <div class="glass-card p-5 lg:col-span-2" style="position:relative;">
+      <div class="section-title">格局全景图</div>
+      <div class="chart-container" style="height: 420px;">
+        <canvas id="landscapeChart"></canvas>
+      </div>
+      <div id="landscapeTooltip">
+        <div class="tip-name"></div>
+        <div class="tip-row tip-vendor"></div>
+        <div class="tip-row tip-tier"></div>
+        <div class="tip-row tip-capabilities"></div>
+        <div class="tip-row tip-mcp"></div>
+      </div>
+    </div>
+
+    <!-- 3. 能力雷达图 -->
+    <div class="glass-card p-5">
+      <div class="section-title">能力维度覆盖</div>
+      <div class="chart-container" style="height: 420px;">
+        <canvas id="radarChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <!-- 4. 部署模式分布 -->
+    <div class="glass-card p-5">
+      <div class="section-title">部署模式分布</div>
+      <div class="chart-container" style="height: 300px;">
+        <canvas id="deployChart"></canvas>
+      </div>
+    </div>
+
+    <!-- 7. 协议采纳趋势 -->
+    <div class="glass-card p-5 lg:col-span-2">
+      <div class="section-title">协议采纳状态</div>
+      <div class="chart-container" style="height: 300px;">
+        <canvas id="protocolChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 5. 梯队对比表 ========== -->
+  <div class="glass-card p-5 mb-6">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div class="section-title" style="margin-bottom:0;">梯队对比表</div>
+      <div class="flex flex-wrap gap-2" id="tableFilters">
+        <button class="filter-btn active" data-filter="all" onclick="filterTable('all', this)">全部</button>
+        <button class="filter-btn" data-filter="ecosystem" onclick="filterTable('ecosystem', this)">生态级</button>
+        <button class="filter-btn" data-filter="professional" onclick="filterTable('professional', this)">专业级</button>
+        <button class="filter-btn" data-filter="emerging" onclick="filterTable('emerging', this)">新兴</button>
+        <span style="color:var(--text-dim);font-size:0.75rem;line-height:2;">|</span>
+        <button class="filter-btn" data-filter="international" onclick="filterTable('international', this)">国际</button>
+        <button class="filter-btn" data-filter="domestic" onclick="filterTable('domestic', this)">国内</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="comparisonTable">
+        <thead>
+          <tr>
+            <th>平台名称</th>
+            <th>厂商</th>
+            <th>梯队</th>
+            <th>区域</th>
+            <th>部署模式</th>
+            <th>多Agent</th>
+            <th>MCP</th>
+            <th>可视化构建</th>
+            <th>私有化</th>
+            <th>定价模式</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ========== 6. 最新动态时间线 ========== -->
+  <div class="glass-card p-5 mb-6">
+    <div class="section-title">最新动态时间线</div>
+    <div id="timelineContainer" style="max-height: 520px; overflow-y: auto; padding-right: 8px;"></div>
+  </div>
+
+  <!-- ========== 底部 ========== -->
+  <div style="text-align:center; padding: 20px 0 8px; color: var(--text-dim); font-size: 0.72rem;">
+    智能体平台态势感知 Dashboard · 数据更新于 <span id="footerDate"></span> · 仅供内部参考
+  </div>
+</div>
+
+<script>
+// ============================================================
+// 数据嵌入：将 platforms.json 的内容直接放在此处
+// ============================================================
+const PLATFORMS = [
+  {
+    "id": "openai-workspace-agents",
+    "name": "OpenAI Workspace Agents",
+    "vendor": "OpenAI",
+    "region": "international",
+    "tier": "ecosystem",
+    "positioning": "企业级Agent托管平台，从GPTs演进而来，Codex驱动代码执行，团队共享+持久记忆+后台定时执行",
+    "deployment": [
+      "saas"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "code-execution",
+      "persistent-memory",
+      "scheduled-tasks",
+      "tool-integration",
+      "human-in-loop"
+    ],
+    "model_support": [
+      "gpt-4o",
+      "gpt-5",
+      "o-series"
+    ],
+    "ecosystem_binding": [
+      "slack",
+      "gmail",
+      "google-drive",
+      "sharepoint",
+      "github"
+    ],
+    "pricing_model": "订阅制 + API用量",
+    "pricing_detail": {
+      "free_tier": false,
+      "starting_price": "$20/mo (ChatGPT Plus)",
+      "enterprise": "custom"
+    },
+    "mcp_support": "partial",
+    "multi_agent": "native",
+    "visual_builder": "native",
+    "private_deploy": "none",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2023-11-06",
+    "last_updated": "2026-05-06",
+    "notes": "免费期已结束，转为Credit积分制计费",
+    "source_urls": [
+      "https://www.reworked.co/digital-workplace/openai-launches-workspace-agents-for-enterprise-workflow-automation/"
+    ],
+    "recent_news": [
+      {
+        "title": "OpenAI正式发布Workspace Agents，Codex驱动代码执行，逐步替代GPTs",
+        "date": "2026-04-22",
+        "summary": "OpenAI发布Workspace Agents，支持团队共享、持久记忆和后台定时执行，由Codex驱动代码执行能力，5月6日前免费使用。",
+        "source_url": "https://www.reworked.co/digital-workplace/openai-launches-workspace-agents-for-enterprise-workflow-automation/"
+      },
+      {
+        "title": "OpenAI Workspace Agents深度分析：企业AI工作流自动化新范式",
+        "date": "2026-04-23",
+        "summary": "业界分析Workspace Agents将GPTs升级为企业级Agent托管平台，支持多Agent协作和人工审批流程。",
+        "source_url": "https://9to5mac.com/2026/04/22/openai-workspace-agents/"
+      },
+      {
+        "title": "GPTs进入倒计时：OpenAI宣布Workspace Agents将替代原有GPTs生态",
+        "date": "2026-04-22",
+        "summary": "OpenAI确认GPTs将逐步被Workspace Agents取代，现有GPTs用户需迁移至新平台，转型期为3个月。",
+        "source_url": "https://36kr.com/p/3224712958619909"
+      }
+    ]
+  },
+  {
+    "id": "anthropic-claude-cowork",
+    "name": "Anthropic Claude Cowork / Managed Agents",
+    "vendor": "Anthropic",
+    "region": "international",
+    "tier": "ecosystem",
+    "positioning": "安全优先的企业级Agent平台，宪法AI框架保障合规，强调可解释性和数据安全",
+    "deployment": [
+      "saas"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "human-in-loop",
+      "persistent-memory",
+      "tool-integration"
+    ],
+    "model_support": [
+      "claude-3.5",
+      "claude-4"
+    ],
+    "ecosystem_binding": [
+      "slack",
+      "google-workspace"
+    ],
+    "pricing_model": "订阅制 + API用量",
+    "pricing_detail": {
+      "free_tier": false,
+      "starting_price": "$20/mo (Claude Pro)",
+      "enterprise": "custom"
+    },
+    "mcp_support": "native",
+    "multi_agent": "native",
+    "visual_builder": "partial",
+    "private_deploy": "limited",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2025-01-01",
+    "last_updated": "2026-05-06",
+    "notes": "5月6日发布Dreaming/Outcomes/Multi-Agent三大功能，Agent任务成功率+10%",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "Anthropic推出Claude Managed Agents公开测试版，安全优先的企业级Agent平台",
+        "date": "2026-04-09",
+        "summary": "Anthropic发布Managed Agents公开测试版，基于宪法AI框架保障合规，强调可解释性和数据安全，面向金融/医疗等强监管场景。",
+        "source_url": "https://www.anthropic.com/news"
+      },
+      {
+        "title": "Anthropic发布2026 State of AI Agents报告",
+        "date": "2026-04-09",
+        "summary": "报告指出企业Agent采用率显著提升，安全与治理成为首要关注点，多Agent协作成为主流趋势。",
+        "source_url": "https://www.anthropic.com/research"
+      },
+      {
+        "title": "Claude 4系列发布：Sonnet与Opus模型上线",
+        "date": "2026-03-03",
+        "summary": "Anthropic发布Claude 4 Sonnet和Opus模型，推理能力大幅提升，原生支持MCP协议，Agent编排能力增强。",
+        "source_url": "https://www.anthropic.com/news/claude-4"
+      }
+    ]
+  },
+  {
+    "id": "google-gemini-enterprise-agent-platform",
+    "name": "Google Gemini Enterprise Agent Platform",
+    "vendor": "Google",
+    "region": "international",
+    "tier": "ecosystem",
+    "positioning": "全栈企业智能体平台，从芯片到应用全覆盖，ADK+Agent Designer双轨开发，A2A跨平台协议",
+    "deployment": [
+      "saas",
+      "hybrid"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "code-execution",
+      "persistent-memory",
+      "visual-workflow",
+      "mcp",
+      "a2a",
+      "tool-integration",
+      "browser-automation"
+    ],
+    "model_support": [
+      "gemini-2.5",
+      "gemini-3",
+      "gemini-3.1-pro",
+      "claude",
+      "llama",
+      "200+"
+    ],
+    "ecosystem_binding": [
+      "google-workspace",
+      "bigquery",
+      "slack",
+      "asana",
+      "jira",
+      "salesforce"
+    ],
+    "pricing_model": "按量付费 + 订阅",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "Express mode免费",
+      "enterprise": "custom"
+    },
+    "mcp_support": "native",
+    "multi_agent": "native",
+    "visual_builder": "native",
+    "private_deploy": "limited",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2024-05-01",
+    "last_updated": "2026-04-22",
+    "notes": "2026 Cloud Next升级：Vertex AI更名，Agentspace合并，Workspace Studio发布，A2A协议150组织生产使用，Project Mariner浏览器Agent",
+    "source_urls": [
+      "https://thenextweb.com/news/google-cloud-next-ai-agents-agentic-era"
+    ],
+    "recent_news": [
+      {
+        "title": "Google Cloud Next 2026：Gemini Enterprise Agent Platform正式发布",
+        "date": "2026-04-24",
+        "summary": "Google在Cloud Next大会发布统一Agent平台，整合Vertex AI Agent Builder与Agentspace，推出Workspace Studio和A2A协议。",
+        "source_url": "https://thenextweb.com/news/google-cloud-next-ai-agents-agentic-era"
+      },
+      {
+        "title": "Google A2A协议获150+组织生产使用，Agent间协作标准化加速",
+        "date": "2026-04-23",
+        "summary": "Google宣布A2A（Agent-to-Agent）协议已有150家组织在生产环境使用，成为跨平台Agent协作的事实标准。",
+        "source_url": "https://cloud.google.com/blog/products/ai-machine-learning/a2a-protocol-agent-collaboration"
+      },
+      {
+        "title": "Project Mariner浏览器Agent进入GA，AI可自主操作网页",
+        "date": "2026-04-24",
+        "summary": "Google的Project Mariner浏览器Agent正式GA，支持AI自主浏览网页、填写表单和执行在线任务。",
+        "source_url": "https://blog.google/technology/ai/project-mariner-ga/"
+      }
+    ]
+  },
+  {
+    "id": "microsoft-azure-ai-foundry",
+    "name": "Microsoft Azure AI Foundry",
+    "vendor": "Microsoft",
+    "region": "international",
+    "tier": "ecosystem",
+    "positioning": "AutoGen+Semantic Kernel合并后的统一Agent框架，深度嵌入M365/Teams/SharePoint企业生态",
+    "deployment": [
+      "saas",
+      "hybrid"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "code-execution",
+      "tool-integration",
+      "human-in-loop"
+    ],
+    "model_support": [
+      "gpt-4o",
+      "gpt-5",
+      "phi",
+      "llama",
+      "mistral"
+    ],
+    "ecosystem_binding": [
+      "m365",
+      "teams",
+      "sharepoint",
+      "outlook",
+      "azure"
+    ],
+    "pricing_model": "Azure按量付费",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "Azure免费层",
+      "enterprise": "custom"
+    },
+    "mcp_support": "partial",
+    "multi_agent": "native",
+    "visual_builder": "partial",
+    "private_deploy": "supported",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2024-11-01",
+    "last_updated": "2026-02-01",
+    "notes": "AutoGen与Semantic Kernel合并，微软Agent栈统一。Agent 365与OpenAI Frontier直接竞争",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "Azure AI Foundry Agent Service正式GA，企业级Agent托管服务上线",
+        "date": "2026-03-16",
+        "summary": "微软宣布Foundry Agent Service正式GA，支持AutoGen+Semantic Kernel统一框架，深度嵌入M365/Teams企业生态。",
+        "source_url": "https://azure.microsoft.com/en-us/blog/azure-ai-foundry-agent-service-ga/"
+      },
+      {
+        "title": "Azure AI Foundry Hosted Agents进入Preview，一键部署AI Agent",
+        "date": "2026-04-15",
+        "summary": "微软推出Hosted Agents预览版，开发者无需管理基础设施即可部署和运行AI Agent，支持自动扩缩容。",
+        "source_url": "https://azure.microsoft.com/en-us/updates/"
+      },
+      {
+        "title": "Microsoft Agent Framework 1.0 GA，统一AutoGen与Semantic Kernel",
+        "date": "2026-04-10",
+        "summary": "微软发布Agent Framework 1.0正式版，将AutoGen与Semantic Kernel合并为统一框架，Agent栈全面统一。",
+        "source_url": "https://devblogs.microsoft.com/semantic-kernel/"
+      }
+    ]
+  },
+  {
+    "id": "aws-bedrock-agentcore",
+    "name": "AWS Bedrock AgentCore",
+    "vendor": "Amazon",
+    "region": "international",
+    "tier": "ecosystem",
+    "positioning": "AWS的Agent基础设施层，代码优先，运行时弹性扩缩+CloudWatch可观测",
+    "deployment": [
+      "saas",
+      "hybrid"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "tool-integration",
+      "persistent-memory"
+    ],
+    "model_support": [
+      "claude",
+      "titan",
+      "llama",
+      "mistral",
+      "stable-diffusion"
+    ],
+    "ecosystem_binding": [
+      "aws",
+      "cloudwatch",
+      "lambda",
+      "s3"
+    ],
+    "pricing_model": "AWS按量付费",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "AWS免费层",
+      "enterprise": "custom"
+    },
+    "mcp_support": "partial",
+    "multi_agent": "native",
+    "visual_builder": "none",
+    "private_deploy": "supported",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2024-12-01",
+    "last_updated": "2026-05-07",
+    "notes": "5月7日新增Payments功能支持AI自主支付，进入GovCloud区域，x402协议生态",
+    "source_urls": [
+      "https://xpander.ai/blog/best-ai-agent-development-platforms-2026-startups-hyperscalers-and-beyond"
+    ],
+    "recent_news": [
+      {
+        "title": "AWS Bedrock AgentCore新增managed harness，简化Agent运行时管理",
+        "date": "2026-04-22",
+        "summary": "AWS为Bedrock AgentCore新增managed harness功能，支持自动扩缩容和CloudWatch深度集成，降低Agent运维复杂度。",
+        "source_url": "https://aws.amazon.com/about-aws/whats-new/2026/04/bedrock-agentcore-managed-harness/"
+      },
+      {
+        "title": "AWS Bedrock AgentCore Gateway正式上线，自动将REST API转为MCP工具",
+        "date": "2026-02-24",
+        "summary": "AgentCore Gateway可将现有RESTful API自动转换为MCP兼容工具，加速Agent与外部系统的集成。",
+        "source_url": "https://aws.amazon.com/about-aws/whats-new/2026/02/bedrock-agentcore-gateway/"
+      },
+      {
+        "title": "Bedrock AgentCore新增Recommendations与Batch Evaluations功能",
+        "date": "2026-04-30",
+        "summary": "AWS新增Agent推荐配置和批量评估功能，帮助企业快速选择最优Agent配置并进行大规模性能测试。",
+        "source_url": "https://aws.amazon.com/about-aws/whats-new/2026/04/bedrock-agentcore-recommendations/"
+      }
+    ]
+  },
+  {
+    "id": "crewai",
+    "name": "CrewAI",
+    "vendor": "CrewAI",
+    "region": "international",
+    "tier": "professional",
+    "positioning": "角色驱动的多Agent协作框架，Python开发者友好，Cloud版+开源版双线",
+    "deployment": [
+      "saas",
+      "open-source"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "tool-integration",
+      "persistent-memory"
+    ],
+    "model_support": [
+      "openai",
+      "anthropic",
+      "google",
+      "any-llm"
+    ],
+    "ecosystem_binding": [],
+    "pricing_model": "开源免费 / Cloud $99/月",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "Free (开源)",
+      "cloud": "$99/mo"
+    },
+    "mcp_support": "partial",
+    "multi_agent": "native",
+    "visual_builder": "native",
+    "private_deploy": "supported",
+    "status": "active",
+    "github_stars": 28000,
+    "first_seen": "2023-10-01",
+    "last_updated": "2026-04-29",
+    "notes": "v1.14.4发布，完全独立于LangChain，100+开发者通过认证",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "CrewAI突破44K GitHub Stars，月运行4.5亿Agent，累计执行14亿次自动化",
+        "date": "2026-02-19",
+        "summary": "CrewAI开源框架月运行Agent超4.5亿，累计执行14亿次自动化，Fortune 500近半数企业使用，获Andrew Ng和Sam Altman家族基金投资。",
+        "source_url": "https://theagenttimes.com/articles/crewai-hits-44k-stars-and-450-million-agents-per-month-the-orchestration-layer-is-here"
+      },
+      {
+        "title": "CrewAI入选2026 Enterprise Tech 30 Early Stage榜单第4名",
+        "date": "2026-04-25",
+        "summary": "CrewAI在VC投票的ET30榜单中排名第4，凸显投资者对AI Agent企业级应用前景的信心。",
+        "source_url": "https://blog.tipranks.com/crewai-weekly-recap/"
+      },
+      {
+        "title": "CrewAI发布AMP企业级管理套件与治理安全方案",
+        "date": "2026-04-25",
+        "summary": "CrewAI推出AMP Agent管理平台，包含实时追踪、统一控制面和治理安全工具，面向合规要求严格的企业客户。",
+        "source_url": "https://ai2.work/blog/the-agent-os-stack-war-heats-up-aws-kiro-crewai-and-datadog"
+      }
+    ]
+  },
+  {
+    "id": "langgraph-cloud",
+    "name": "LangGraph Cloud",
+    "vendor": "LangChain",
+    "region": "international",
+    "tier": "professional",
+    "positioning": "有状态多Agent工作流编排，LangChain生态核心，47M+ PyPI下载",
+    "deployment": [
+      "saas",
+      "open-source"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "visual-workflow",
+      "persistent-memory",
+      "human-in-loop"
+    ],
+    "model_support": [
+      "openai",
+      "anthropic",
+      "google",
+      "any-llm"
+    ],
+    "ecosystem_binding": [],
+    "pricing_model": "开源免费 / Cloud $39/seat/月",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "Free (开源)",
+      "cloud": "$39/seat/mo"
+    },
+    "mcp_support": "partial",
+    "multi_agent": "native",
+    "visual_builder": "partial",
+    "private_deploy": "supported",
+    "status": "active",
+    "github_stars": 15000,
+    "first_seen": "2024-01-01",
+    "last_updated": "2026-04-01",
+    "notes": "生产级有状态Agent的行业标准，可视化调试器。Platform层在成熟中",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "LangGraph Cloud v1.1发布，可视化调试器增强Agent可观测性",
+        "date": "2026-03-15",
+        "summary": "LangGraph Cloud发布v1.1版本，增强可视化调试器和Agent可观测性功能，支持实时追踪多Agent工作流状态。",
+        "source_url": "https://blog.langchain.dev/langgraph-cloud-v1-1/"
+      },
+      {
+        "title": "LangGraph Platform层加速成熟，47M+ PyPI下载量验证生产级地位",
+        "date": "2026-02-20",
+        "summary": "LangGraph Platform层持续成熟，PyPI累计下载量超4700万，成为有状态多Agent工作流编排的行业标配。",
+        "source_url": "https://blog.langchain.dev/langgraph-platform-maturity/"
+      },
+      {
+        "title": "LangChain生态整合：LangGraph与LangSmith深度联动",
+        "date": "2026-01-15",
+        "summary": "LangGraph与LangSmith深度整合，实现Agent开发-测试-监控全链路可观测，降低生产环境Agent调试成本。",
+        "source_url": "https://blog.langchain.dev/langgraph-langsmith-integration/"
+      }
+    ]
+  },
+  {
+    "id": "n8n",
+    "name": "n8n",
+    "vendor": "n8n",
+    "region": "international",
+    "tier": "professional",
+    "positioning": "工作流自动化+AI Agent节点，400+应用连接器，Zapier+Agent混合模式",
+    "deployment": [
+      "saas",
+      "open-source"
+    ],
+    "core_capabilities": [
+      "visual-workflow",
+      "tool-integration",
+      "multi-agent",
+      "scheduled-tasks"
+    ],
+    "model_support": [
+      "openai",
+      "anthropic",
+      "google",
+      "any-llm"
+    ],
+    "ecosystem_binding": [
+      "400+ integrations"
+    ],
+    "pricing_model": "开源免费 / Cloud EUR 24/月",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "Free (自托管)",
+      "cloud": "EUR 24/mo"
+    },
+    "mcp_support": "partial",
+    "multi_agent": "partial",
+    "visual_builder": "native",
+    "private_deploy": "supported",
+    "status": "active",
+    "github_stars": 55000,
+    "first_seen": "2019-01-01",
+    "last_updated": "2025-06-01",
+    "notes": "2025年加入AI Agent节点，从传统自动化平台转型为Agent+Workflow混合体",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "n8n发布v2.18.0，AI Builder增强并行执行与MCP安全修复",
+        "date": "2026-04-21",
+        "summary": "n8n v2.18.0增强AI Builder编排器最大步骤数至60步，修复MCP OAuth客户端注册安全漏洞，新增Chat节点交互能力。",
+        "source_url": "https://github.com/n8n-io/n8n/pull/28768"
+      },
+      {
+        "title": "n8n推出70+ AI节点，全面转向AI-First自动化平台",
+        "date": "2025-12-15",
+        "summary": "n8n v1.113.3发布，新增70+ AI节点覆盖LLM/嵌入/向量库/语音/OCR等，同步上线企业SSO支持。",
+        "source_url": "https://skywork.ai/blog/ai-agent/n8n-2025-update-new-ai-nodes-and-self-hosting-improvements/"
+      },
+      {
+        "title": "n8n安全事件：OWASP评估AI Agent节点存在沙箱逃逸风险",
+        "date": "2026-03-11",
+        "summary": "OWASP评估发现n8n AI Agent节点沙箱机制多次被绕过，CISA将相关CVE加入已知漏洞利用目录，n8n已发布补丁修复。",
+        "source_url": "https://github.com/n8n-io/n8n/issues/26961"
+      }
+    ]
+  },
+  {
+    "id": "relevance-ai",
+    "name": "Relevance AI",
+    "vendor": "Relevance AI",
+    "region": "international",
+    "tier": "professional",
+    "positioning": "无代码Agent构建器，BYO-LLM模式，按actions+credits分离计费",
+    "deployment": [
+      "saas"
+    ],
+    "core_capabilities": [
+      "visual-workflow",
+      "tool-integration",
+      "rag"
+    ],
+    "model_support": [
+      "byo-llm"
+    ],
+    "ecosystem_binding": [],
+    "pricing_model": "免费200actions + 按量付费",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "Free (200 actions)",
+      "paid": "usage-based"
+    },
+    "mcp_support": "none",
+    "multi_agent": "partial",
+    "visual_builder": "native",
+    "private_deploy": "none",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2023-01-01",
+    "last_updated": "2026-04-01",
+    "notes": "自带模型API密钥可大幅降低成本，适合预算敏感团队",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "Relevance AI获2400万美元B轮融资，加速AI Workforce平台扩展",
+        "date": "2025-05-06",
+        "summary": "Relevance AI完成$24M B轮融资，Bessemer Venture Partners领投，总融资额达$37M，用于加速AI Agent工作力平台开发。",
+        "source_url": "https://www.thesaasnews.com/news/relevance-ai-secures-24-million-in-series-b"
+      },
+      {
+        "title": "Relevance AI发布Workforce与Invent，推出多Agent可视化协作画布",
+        "date": "2025-05-07",
+        "summary": "Relevance AI推出Workforce多Agent可视化画布和Invent自然语言Agent创建工具，新增2000+集成连接器。",
+        "source_url": "https://relevance.ai/blog/the-ai-workforce-revolution-24m-series-b-to-accelerate-our-mission"
+      },
+      {
+        "title": "Relevance AI推出Agent Performance Observability，增强生产环境监控",
+        "date": "2026-03-13",
+        "summary": "Relevance AI发布Agent性能可观测性功能，支持生产环境AI Agent实时监控、PPTX文件分析和Workforce触发控制。",
+        "source_url": "https://relevanceai.com/changelog"
+      }
+    ]
+  },
+  {
+    "id": "lindy-ai",
+    "name": "Lindy AI",
+    "vendor": "Lindy AI",
+    "region": "international",
+    "tier": "professional",
+    "positioning": "无代码Agent平台，预置模板丰富，自然语言描述即可创建Agent",
+    "deployment": [
+      "saas"
+    ],
+    "core_capabilities": [
+      "visual-workflow",
+      "tool-integration",
+      "scheduled-tasks"
+    ],
+    "model_support": [
+      "openai",
+      "anthropic"
+    ],
+    "ecosystem_binding": [],
+    "pricing_model": "免费400credits + 按量付费",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "Free (400 credits)"
+    },
+    "mcp_support": "none",
+    "multi_agent": "partial",
+    "visual_builder": "native",
+    "private_deploy": "none",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2024-01-01",
+    "last_updated": "2026-04-01",
+    "notes": "业务场景模板多，适合快速搭建非技术团队",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "Lindy AI发布3.0大版本：Agent Builder、Autopilot和Team Accounts",
+        "date": "2025-08-04",
+        "summary": "Lindy 3.0引入自然语言Agent构建器、Autopilot计算机使用能力和团队账户，实现AI Agent从创建到协作的全流程升级。",
+        "source_url": "https://www.lindy.ai/changelog"
+      },
+      {
+        "title": "Lindy推出Agent Swarms，单Agent可克隆并行完成数百任务",
+        "date": "2025-04-15",
+        "summary": "Lindy发布Agent Swarms功能，单个AI Agent可自动克隆并行执行数百个任务，大幅提升批量邮件、数据增强等场景效率。",
+        "source_url": "https://www.dialora.ai/blog/lindy-ai-vs-dialora-ai"
+      },
+      {
+        "title": "Lindy Build上线：AI自动构建并测试Web应用",
+        "date": "2025-09-02",
+        "summary": "Lindy Build让用户通过自然语言描述即可生成完整Web应用，并自动测试和修复问题，无需编程经验。",
+        "source_url": "https://www.lindy.ai/changelog"
+      }
+    ]
+  },
+  {
+    "id": "flowise",
+    "name": "Flowise",
+    "vendor": "Flowise (acquired by Workday)",
+    "region": "international",
+    "tier": "professional",
+    "positioning": "可视化LangChain/LlamaIndex构建器，拖拽式创建AI应用",
+    "deployment": [
+      "saas",
+      "open-source"
+    ],
+    "core_capabilities": [
+      "visual-workflow",
+      "rag",
+      "tool-integration"
+    ],
+    "model_support": [
+      "openai",
+      "anthropic",
+      "google",
+      "any-llm"
+    ],
+    "ecosystem_binding": [],
+    "pricing_model": "开源免费 / Cloud $35/月",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "Free (自托管)",
+      "cloud": "$35/mo"
+    },
+    "mcp_support": "none",
+    "multi_agent": "partial",
+    "visual_builder": "native",
+    "private_deploy": "supported",
+    "status": "acquired",
+    "github_stars": 35000,
+    "first_seen": "2023-03-01",
+    "last_updated": "2025-08-01",
+    "notes": "2025年8月被Workday收购，Agent构建能力融入HR/Finance场景",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "Workday收购Flowise，Agent构建能力融入HR/Finance场景",
+        "date": "2025-08-15",
+        "summary": "Workday完成对Flowise的收购，将其可视化LangChain/LlamaIndex构建能力整合入Workday Build平台，聚焦HR和财务领域的Agent自动化。",
+        "source_url": "https://www.taskade.com/blog/ai-agent-platforms"
+      },
+      {
+        "title": "Flowise融入Workday Build，推出Flowise Agent Builder低代码工具",
+        "date": "2026-03-20",
+        "summary": "Workday Build平台集成Flowise Agent Builder，提供低代码方式设计部署Agent，深度接入Workday人力和财务数据。",
+        "source_url": "https://www.workday.com/en-us/platform.html"
+      },
+      {
+        "title": "Workday发布AI Agent治理框架，Flowise Agent内置合规管控",
+        "date": "2026-04-15",
+        "summary": "Workday推出AI Agent治理框架，将合规和安全管控作为Agent部署的核心要求，Flowise Agent Builder内置治理检查点。",
+        "source_url": "https://www.workday.com/en-us/blog/ai-governance-framework.html"
+      }
+    ]
+  },
+  {
+    "id": "botpress",
+    "name": "Botpress",
+    "vendor": "Botpress",
+    "region": "international",
+    "tier": "professional",
+    "positioning": "十年老牌对话式AI平台，100万+Bot部署，2025年加入LLM Agent能力",
+    "deployment": [
+      "saas",
+      "open-source"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "tool-integration",
+      "visual-workflow"
+    ],
+    "model_support": [
+      "openai",
+      "anthropic",
+      "google"
+    ],
+    "ecosystem_binding": [],
+    "pricing_model": "免费 + 按量付费",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "Free",
+      "paid": "usage-based"
+    },
+    "mcp_support": "none",
+    "multi_agent": "partial",
+    "visual_builder": "native",
+    "private_deploy": "limited",
+    "status": "active",
+    "github_stars": 13000,
+    "first_seen": "2017-01-01",
+    "last_updated": "2025-06-01",
+    "notes": "会话式Agent首选，从Chatbot平台升级为Agent平台",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "Botpress完成2500万美元B轮融资，加速AI Agent基础设施建设",
+        "date": "2025-06-23",
+        "summary": "Botpress获$25M B轮融资，用于扩展其AI Agent基础设施平台，包括隔离运行时、自定义推理引擎和安全代码执行层。",
+        "source_url": "https://botpress.com/ko/blog/unveiling-the-new-botpress-a-gpt-native-bot-building-platform"
+      },
+      {
+        "title": "Botpress发布ADK（Agent Development Kit），加速企业Agent开发",
+        "date": "2026-03-17",
+        "summary": "Botpress推出ADK开发工具包，支持开发者快速构建和部署生产级AI Agent，GitHub仓库活跃更新中。",
+        "source_url": "https://github.com/orgs/botpress/repositories?type=all"
+      },
+      {
+        "title": "Botpress Studio新增AI驱动的自动化Onboarding流程",
+        "date": "2025-07-04",
+        "summary": "Botpress Studio上线新引导流程，自动根据品牌风格构建生产就绪的AI Agent，支持截图卡片和Teams集成。",
+        "source_url": "https://botpress.com/changelog"
+      }
+    ]
+  },
+  {
+    "id": "mindstudio",
+    "name": "MindStudio",
+    "vendor": "MindStudio",
+    "region": "international",
+    "tier": "professional",
+    "positioning": "无代码多模型Agent平台，可视化工作流，一键部署，面向非技术团队",
+    "deployment": [
+      "saas"
+    ],
+    "core_capabilities": [
+      "visual-workflow",
+      "tool-integration",
+      "multi-agent"
+    ],
+    "model_support": [
+      "openai",
+      "anthropic",
+      "google",
+      "any-llm"
+    ],
+    "ecosystem_binding": [
+      "salesforce",
+      "hubspot",
+      "slack",
+      "stripe"
+    ],
+    "pricing_model": "按量付费",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "Free tier"
+    },
+    "mcp_support": "none",
+    "multi_agent": "partial",
+    "visual_builder": "native",
+    "private_deploy": "none",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2023-06-01",
+    "last_updated": "2026-02-01",
+    "notes": "多模型切换是核心差异化，同一工作流可用不同模型",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "MindStudio推出AI Media Workbench，专业AI视频和图像制作",
+        "date": "2026-02-01",
+        "summary": "MindStudio发布AI Media Workbench功能，支持专业级AI视频和图像生产，无需专业学习曲线，已服务15万+用户。",
+        "source_url": "https://www.mindstudio.ai/"
+      },
+      {
+        "title": "MindStudio推出Agent Architect，自然语言自动构建Agent",
+        "date": "2025-12-01",
+        "summary": "MindStudio发布Agent Architect功能，用户只需描述想要的Agent即可自动生成工作流框架，支持200+ AI模型无API密钥接入。",
+        "source_url": "https://work-management.org/work-management/mindstudio-review/"
+      },
+      {
+        "title": "MindStudio发布2026 AI Agent趋势预测，首年ROI达312%",
+        "date": "2026-01-31",
+        "summary": "MindStudio发布AI Agent趋势报告，指出组织首年ROI中位数312%，回收期4.3个月，40%企业应用将嵌入AI Agent。",
+        "source_url": "https://www.mindstudio.ai/blog/future-of-ai-agents"
+      }
+    ]
+  },
+  {
+    "id": "xpander-ai",
+    "name": "xpander.ai",
+    "vendor": "xpander.ai",
+    "region": "international",
+    "tier": "professional",
+    "positioning": "全生命周期Agent平台，可视化构建+金丝雀部署+版本管理，多云不锁定",
+    "deployment": [
+      "saas",
+      "hybrid"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "visual-workflow",
+      "tool-integration",
+      "scheduled-tasks"
+    ],
+    "model_support": [
+      "openai",
+      "anthropic",
+      "google",
+      "any-llm"
+    ],
+    "ecosystem_binding": [],
+    "pricing_model": "SaaS订阅",
+    "pricing_detail": {
+      "free_tier": false,
+      "starting_price": "Contact"
+    },
+    "mcp_support": "partial",
+    "multi_agent": "native",
+    "visual_builder": "native",
+    "private_deploy": "supported",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2025-01-01",
+    "last_updated": "2026-04-29",
+    "notes": "v2.0.303 SDK发布，AWS集成增强，发布企业级Agent平台排名对比报告",
+    "source_urls": [
+      "https://xpander.ai/blog/best-ai-agent-development-platforms-2026-startups-hyperscalers-and-beyond"
+    ],
+    "recent_news": [
+      {
+        "title": "xpander.ai推出Workflows可视化Agent编排界面",
+        "date": "2026-02-15",
+        "summary": "xpander.ai发布Workflows功能，提供可视化界面编排AI Agent和自动化工作流，消除传统自动化中繁琐的手动字段映射。",
+        "source_url": "https://docs.xpander.ai/changelog/product-updates"
+      },
+      {
+        "title": "xpander.ai发布OpenClaw托管容器，每个员工获得个人AI助手",
+        "date": "2026-03-01",
+        "summary": "xpander.ai推出基于OpenClaw的托管个人AI助手，支持Slack/Teams/语音渠道，可跨企业系统执行任务，IT一键部署全员可用。",
+        "source_url": "https://docs.xpander.ai/changelog/product-updates"
+      },
+      {
+        "title": "xpander.ai Agent Studio全面改版，新增语音交互和审计日志",
+        "date": "2026-03-10",
+        "summary": "xpander.ai重构Agent Studio体验，新增语音输入输出、组织审计日志、Slack工作流支持和MongoDB连接器。",
+        "source_url": "https://docs.xpander.ai/changelog/product-updates"
+      }
+    ]
+  },
+  {
+    "id": "coze",
+    "name": "字节Coze（扣子）",
+    "vendor": "字节跳动",
+    "region": "domestic",
+    "tier": "ecosystem",
+    "positioning": "一站式Bot/Agent开发平台，700+插件，多Agent协作+工作流编排，MCP协议开放",
+    "deployment": [
+      "saas"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "visual-workflow",
+      "tool-integration",
+      "rag",
+      "mcp",
+      "scheduled-tasks"
+    ],
+    "model_support": [
+      "doubao",
+      "gpt-4o",
+      "claude-3.5",
+      "kimi",
+      "qwen"
+    ],
+    "ecosystem_binding": [
+      "douyin",
+      "feishu",
+      "wechat",
+      "dingtalk"
+    ],
+    "pricing_model": "免费 + 按量付费",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "Free",
+      "enterprise": "custom"
+    },
+    "mcp_support": "native",
+    "multi_agent": "native",
+    "visual_builder": "native",
+    "private_deploy": "none",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2024-02-01",
+    "last_updated": "2026-05-11",
+    "notes": "2026.5.9正式开源Coze Studio和Coze Loop，Apache 2.0协议允许免费商用",
+    "source_urls": [
+      "https://juejin.cn/post/7630746111230443526"
+    ],
+    "recent_news": [
+      {
+        "title": "字节推出火山引擎Agent Plan，模型+工具链订阅制全栈覆盖",
+        "date": "2026-05-11",
+        "summary": "火山引擎在原编程模型订阅基础上，整合多模态模型、Harness工具，含字节自研及主流三方SOTA模型，设阶梯订阅与企业版，支持多模态任务，可降低开发门槛。字节系从平台层往模型+工具链层全栈覆盖的信号。",
+        "source_url": "待补充"
+      },
+      {
+        "title": "字节Coze 2.5版本发布：Agent World、云电脑云手机上线",
+        "date": "2026-04-07",
+        "summary": "Coze 2.5版本上线Agent World虚拟世界、云电脑和云手机能力，定位从Bot平台升级为职场AI入口。",
+        "source_url": "https://juejin.cn/post/7630746111230443526"
+      },
+      {
+        "title": "Coze 2.0发布：MCP协议开放，多Agent协作升级",
+        "date": "2026-01-19",
+        "summary": "Coze 2.0版本正式开放MCP协议支持，增强多Agent协作能力，定位转向'职场AI'场景。",
+        "source_url": "https://juejin.cn/post/7630746111230443526"
+      },
+      {
+        "title": "Coze国际版coze.com独立运营，面向全球开发者生态",
+        "date": "2026-03-01",
+        "summary": "Coze国际版独立运营，接入更多国际模型和集成渠道，与国内版形成双轨发展格局。",
+        "source_url": "https://www.coze.com/"
+      }
+    ]
+  },
+  {
+    "id": "ali-bailian",
+    "name": "阿里百炼（Model Studio）",
+    "vendor": "阿里巴巴",
+    "region": "domestic",
+    "tier": "ecosystem",
+    "positioning": "云原生Agent开发平台，千问大模型企业调用量第一，钉钉+阿里云深度集成",
+    "deployment": [
+      "saas",
+      "hybrid"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "visual-workflow",
+      "tool-integration",
+      "rag"
+    ],
+    "model_support": [
+      "qwen",
+      "llama",
+      "baichuan",
+      "yi"
+    ],
+    "ecosystem_binding": [
+      "dingtalk",
+      "aliyun",
+      "alibaba-cloud"
+    ],
+    "pricing_model": "按量付费",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "免费额度",
+      "enterprise": "custom"
+    },
+    "mcp_support": "partial",
+    "multi_agent": "native",
+    "visual_builder": "native",
+    "private_deploy": "supported",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2023-11-01",
+    "last_updated": "2026-03-01",
+    "notes": "千问大模型32.1%企业调用量份额第一，2026推出多模型路由网关",
+    "source_urls": [
+      "https://juejin.cn/post/7628784778843209780"
+    ],
+    "recent_news": [
+      {
+        "title": "阿里百炼发布Agent 2.0，MCP市场与工具粒度选择上线",
+        "date": "2026-01-23",
+        "summary": "阿里百炼上线新版智能体应用Agent 2.0，将知识库和MCP统一为工具，Agent自主规划调用顺序，新增MCP市场和管理功能。",
+        "source_url": "https://help.aliyun.com/zh/model-studio/getting-started/2024-release-notes/"
+      },
+      {
+        "title": "阿里百炼知识库商业化启动，RAG旗舰版资源包上线",
+        "date": "2026-01-04",
+        "summary": "阿里百炼知识库服务自2026年1月4日起正式计费，同步上线RAG旗舰版资源包，检索算法优化新增语义检索能力。",
+        "source_url": "https://help.aliyun.com/zh/model-studio/getting-started/2024-release-notes/"
+      },
+      {
+        "title": "阿里百炼多模态工作流全面上线，MCP广场新增12个云部署服务",
+        "date": "2025-12-15",
+        "summary": "百炼工作流支持文档/图片/音视频上传与智能解析，MCP广场新增12个云部署服务，应用广场上架146个模板。",
+        "source_url": "https://developer.aliyun.com/article/1703894"
+      }
+    ]
+  },
+  {
+    "id": "tencent-hunyuan-yuanqi",
+    "name": "腾讯混元/元器",
+    "vendor": "腾讯",
+    "region": "domestic",
+    "tier": "ecosystem",
+    "positioning": "轻量化部署+私有化能力，微信/企微生态原生适配，金融/医疗合规场景优势",
+    "deployment": [
+      "saas",
+      "hybrid"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "visual-workflow",
+      "tool-integration",
+      "rag"
+    ],
+    "model_support": [
+      "hunyuan",
+      "mixtral"
+    ],
+    "ecosystem_binding": [
+      "wechat",
+      "wechat-work",
+      "qq"
+    ],
+    "pricing_model": "按量付费",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "免费额度",
+      "enterprise": "custom"
+    },
+    "mcp_support": "none",
+    "multi_agent": "native",
+    "visual_builder": "native",
+    "private_deploy": "supported",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2024-05-01",
+    "last_updated": "2026-03-01",
+    "notes": "ADP3.0支持零代码/少代码，可发布到微信公众号/QQ/微信客服。生态丰富度落后但合规能力强",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "腾讯混元Hy3 preview发布并开源，295B参数MoE架构Agent能力领先",
+        "date": "2026-04-24",
+        "summary": "腾讯发布混元Hy3 preview模型并开源，295B参数MoE架构支持快慢思考，Agent能力达SOTA，支持256K上下文窗口。",
+        "source_url": "https://www.tencent.com/en-us/articles/2202320.html"
+      },
+      {
+        "title": "混元Hy3上线两周Token调用量超上代10倍，登顶OpenRouter双榜首",
+        "date": "2026-05-07",
+        "summary": "Hy3 preview上线两周Token调用量较Hy2增长超10倍，代码与Agent场景调用量增幅16.5倍，登顶OpenRouter周榜调用量与市场占有率双第一。",
+        "source_url": "http://m.toutiao.com/group/7636980149976400425/"
+      },
+      {
+        "title": "腾讯智能体平台Cube全面开源，SkillHub技能生态收录3.5万+技能",
+        "date": "2026-04-15",
+        "summary": "腾讯底层智能体平台Cube全面开源，支持企业智能体训练和部署，SkillHub技能社区已收录3.5万+技能，元器平台迁移至TokenHub。",
+        "source_url": "https://cloud.tencent.com/document/product/1729/104753"
+      }
+    ]
+  },
+  {
+    "id": "baidu-wenxin-agent",
+    "name": "百度文心智能体平台（AgentBuilder）",
+    "vendor": "百度",
+    "region": "domestic",
+    "tier": "ecosystem",
+    "positioning": "基于文心大模型，搜索生态双引擎分发，零代码创建，多模态创作8种模态",
+    "deployment": [
+      "saas"
+    ],
+    "core_capabilities": [
+      "rag",
+      "tool-integration",
+      "visual-workflow",
+      "multi-agent"
+    ],
+    "model_support": [
+      "wenxin"
+    ],
+    "ecosystem_binding": [
+      "baidu-search",
+      "baidu-cloud"
+    ],
+    "pricing_model": "免费 + 按量付费",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "Free",
+      "enterprise": "custom"
+    },
+    "mcp_support": "none",
+    "multi_agent": "partial",
+    "visual_builder": "native",
+    "private_deploy": "limited",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2023-10-01",
+    "last_updated": "2026-05-09",
+    "notes": "5月9日发布文心5.1，预训练成本6%，LMArena搜索榜国内第一全球第四",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "百度文心智能体平台开发者增长17倍，月入过千用户增长19倍",
+        "date": "2026-03-15",
+        "summary": "百度披露文心智能体平台数据：开发者数量同比增长17倍，月收入超千元的用户增长19倍，搜索分发成为独特优势。",
+        "source_url": "https://yiyan.baidu.com/"
+      },
+      {
+        "title": "百度AgentBuilder升级：多模态创作8种模态，RAG幻觉率降低",
+        "date": "2026-01-20",
+        "summary": "文心智能体平台AgentBuilder升级，支持8种模态内容创作，RAG检索增强生成幻觉率显著降低，零代码创建门槛进一步降低。",
+        "source_url": "https://agents.baidu.com/"
+      },
+      {
+        "title": "百度文心大模型4.5发布，Agent能力与工具调用显著增强",
+        "date": "2026-02-18",
+        "summary": "百度发布文心大模型4.5，Agent任务规划与工具调用能力大幅提升，搜索生态双引擎分发能力进一步强化。",
+        "source_url": "https://yiyan.baidu.com/"
+      }
+    ]
+  },
+  {
+    "id": "jd-joyagent",
+    "name": "京东云JoyAgent",
+    "vendor": "京东",
+    "region": "domestic",
+    "tier": "ecosystem",
+    "positioning": "企业级复杂场景Agent平台，核心技术开源，BPM引擎+Agent双模式",
+    "deployment": [
+      "saas",
+      "hybrid",
+      "open-source"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "visual-workflow",
+      "tool-integration",
+      "scheduled-tasks"
+    ],
+    "model_support": [
+      "jd-model",
+      "qwen",
+      "open-source"
+    ],
+    "ecosystem_binding": [
+      "jd-cloud",
+      "jd-retail"
+    ],
+    "pricing_model": "开源免费 + 企业版",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "Free (开源)",
+      "enterprise": "custom"
+    },
+    "mcp_support": "partial",
+    "multi_agent": "native",
+    "visual_builder": "native",
+    "private_deploy": "supported",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2025-06-01",
+    "last_updated": "2026-04-01",
+    "notes": "2026年新晋黑马，BPM+Agent双模式是独特定位，适合企业复杂流程场景",
+    "source_urls": [
+      "https://juejin.cn/post/7630746111230443526"
+    ],
+    "recent_news": [
+      {
+        "title": "京东云发布JoyAgent 3.0+JoyCode 2.0双平台，'改造而非重建'破解AI落地困局",
+        "date": "2025-09-26",
+        "summary": "京东云在JDD 2025大会发布JoyAgent 3.0智能体平台与JoyCode 2.0编程平台，GAIA评测超67%准确率登顶，全面开源并支持MCP/A2A协议。",
+        "source_url": "https://blog.csdn.net/kuyxerp/article/details/152170197"
+      },
+      {
+        "title": "京东JoyAgent政务智能体获数字中国创新大赛一等奖",
+        "date": "2026-04-30",
+        "summary": "京东基于JoyAI大模型和JoyAgent智能体技术的京办平台再次获数字中国创新大赛一等奖，京通APP获二等奖，6万余智能体稳定运行。",
+        "source_url": "http://m.toutiao.com/group/7634489300133888522/"
+      },
+      {
+        "title": "JoyAgent 3.0开源超1万Star，DataAgent无迁移分析多模态数据",
+        "date": "2025-10-15",
+        "summary": "JoyAgent 3.0自2025年7月开源以来GitHub超1万Star，DataAgent支持无需数据迁移即可分析多模态数据，内置SOP流程引擎。",
+        "source_url": "https://m.ebrun.com/607217.html"
+      }
+    ]
+  },
+  {
+    "id": "dify",
+    "name": "Dify",
+    "vendor": "Dify",
+    "region": "domestic",
+    "tier": "professional",
+    "positioning": "开源LLM应用开发平台，可视化工作流+RAG，GitHub 60k+ Star",
+    "deployment": [
+      "saas",
+      "open-source"
+    ],
+    "core_capabilities": [
+      "visual-workflow",
+      "rag",
+      "tool-integration",
+      "multi-agent"
+    ],
+    "model_support": [
+      "100+",
+      "openai",
+      "anthropic",
+      "qwen",
+      "doubao"
+    ],
+    "ecosystem_binding": [],
+    "pricing_model": "开源免费 / Cloud订阅",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "Free (自托管)",
+      "cloud": "SaaS订阅"
+    },
+    "mcp_support": "partial",
+    "multi_agent": "partial",
+    "visual_builder": "native",
+    "private_deploy": "supported",
+    "status": "active",
+    "github_stars": 60000,
+    "first_seen": "2023-04-01",
+    "last_updated": "2026-05-02",
+    "notes": "v1.14.0正式版：协同编辑+Skills模块化+HITL API，工作流编排效率提升400%",
+    "source_urls": [
+      "https://juejin.cn/post/7630746111230443526"
+    ],
+    "recent_news": [
+      {
+        "title": "Dify完成3000万美元Pre-A轮融资，开源LLM应用开发平台加速商业化",
+        "date": "2026-03-10",
+        "summary": "Dify完成$30M Pre-A轮融资，开源LLM应用开发平台GitHub 60k+ Star，商业化加速但社区版功能阉割被诟病。",
+        "source_url": "https://juejin.cn/post/7630746111230443526"
+      },
+      {
+        "title": "Dify v1.13.0发布：Human Input Node上线，工作流人机协作增强",
+        "date": "2026-03-03",
+        "summary": "Dify发布v1.13.0版本，新增Human Input Node支持工作流中人工审批环节，MVC架构和GraphEngine编排引擎持续优化。",
+        "source_url": "https://github.com/langgenius/dify/releases"
+      },
+      {
+        "title": "Dify通过SOC2和ISO合规认证，企业级安全能力升级",
+        "date": "2026-03-13",
+        "summary": "Dify获得SOC2 Type II和ISO 27001认证，企业级安全合规能力显著增强，为金融/医疗等强监管行业客户提供信任背书。",
+        "source_url": "https://dify.ai/blog"
+      }
+    ]
+  },
+  {
+    "id": "fastgpt",
+    "name": "FastGPT",
+    "vendor": "FastGPT",
+    "region": "domestic",
+    "tier": "professional",
+    "positioning": "RAG性能怪兽级，但Multi-Agent编排能力缺失，'单兵作战'定位",
+    "deployment": [
+      "saas",
+      "open-source"
+    ],
+    "core_capabilities": [
+      "rag",
+      "visual-workflow",
+      "tool-integration"
+    ],
+    "model_support": [
+      "openai",
+      "anthropic",
+      "qwen",
+      "doubao"
+    ],
+    "ecosystem_binding": [],
+    "pricing_model": "开源免费 / Cloud按量",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "Free (自托管)"
+    },
+    "mcp_support": "none",
+    "multi_agent": "none",
+    "visual_builder": "native",
+    "private_deploy": "supported",
+    "status": "active",
+    "github_stars": 20000,
+    "first_seen": "2023-06-01",
+    "last_updated": "2026-03-01",
+    "notes": "RAG场景仍然最强，但2026最大痛点暴露：Multi-Agent编排能力缺失",
+    "source_urls": [
+      "https://juejin.cn/post/7630746111230443526"
+    ],
+    "recent_news": [
+      {
+        "title": "FastGPT V4.14.11发布：并行执行节点与对话流响应恢复功能上线",
+        "date": "2026-04-24",
+        "summary": "FastGPT V4.14.11新增并行执行节点和对话流响应恢复功能，优化变量更新节点交互，增强Zod参数校验安全性。",
+        "source_url": "https://doc.fastgpt.cn/zh-CN/docs/self-host/upgrading/4-14/41411"
+      },
+      {
+        "title": "FastGPT V4.14.6：插件市场批量更新，企微特定版接入支持",
+        "date": "2026-02-12",
+        "summary": "FastGPT V4.14.6上线插件批量更新、系统工具自定义分类、企微特定版接入和Seekdb向量库预设配置等功能。",
+        "source_url": "https://doc.fastgpt.cn/zh-CN/docs/upgrading/4-14/4146"
+      },
+      {
+        "title": "FastGPT V4.14.5大版本：原生支持OSS/COS存储、工作流Demo模式",
+        "date": "2026-01-15",
+        "summary": "FastGPT V4.14.5原生支持阿里云OSS和腾讯COS存储，新增工作流Demo模式、嵌套应用快速跳转和敏感信息过滤导出。",
+        "source_url": "https://doc.fastgpt.io/en/docs/self-host/upgrading/4-14/4145"
+      }
+    ]
+  },
+  {
+    "id": "kimi-agent-builder",
+    "name": "Kimi Agent Builder",
+    "vendor": "月之暗面 (Moonshot AI)",
+    "region": "domestic",
+    "tier": "professional",
+    "positioning": "百万字长文本处理标杆，AgentSwarm集群技术，法律/金融专业文档场景强",
+    "deployment": [
+      "saas"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "rag",
+      "persistent-memory",
+      "tool-integration"
+    ],
+    "model_support": [
+      "moonshot",
+      "kimi"
+    ],
+    "ecosystem_binding": [],
+    "pricing_model": "按量付费",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "免费额度"
+    },
+    "mcp_support": "none",
+    "multi_agent": "native",
+    "visual_builder": "partial",
+    "private_deploy": "none",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2024-03-01",
+    "last_updated": "2026-05-01",
+    "notes": "完成20亿美元融资，估值超330亿美元，Kimi ARR突破2亿美元",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "月之暗面完成20亿美元融资，Kimi估值超330亿美元",
+        "date": "2026-05-01",
+        "summary": "月之暗面完成$20亿新一轮融资，估值超$330亿，Kimi ARR突破$2亿，AgentSwarm集群技术成为核心差异化。",
+        "source_url": "https://www.moonshot.cn/"
+      },
+      {
+        "title": "Kimi K2.6模型开源发布，长文本与Agent能力显著提升",
+        "date": "2026-04-20",
+        "summary": "月之暗面开源K2.6模型，百万字长文本处理能力持续领先，AgentSwarm集群技术支持多Agent并行处理复杂任务。",
+        "source_url": "https://github.com/MoonshotAI/"
+      },
+      {
+        "title": "Kimi ARR突破2亿美元，法律/金融专业文档场景渗透加速",
+        "date": "2026-04-10",
+        "summary": "Kimi年度经常性收入突破$2亿，在法律合同审查、金融研报分析等专业文档场景的用户渗透率显著提升。",
+        "source_url": "https://www.moonshot.cn/"
+      }
+    ]
+  },
+  {
+    "id": "zhipu-agent-studio",
+    "name": "智谱清言 Agent Studio",
+    "vendor": "智谱AI",
+    "region": "domestic",
+    "tier": "professional",
+    "positioning": "基于GLM系列，科研+工程领域利器，支持本地部署保障数据安全",
+    "deployment": [
+      "saas",
+      "open-source"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "tool-integration",
+      "code-execution",
+      "rag"
+    ],
+    "model_support": [
+      "glm-4",
+      "chatglm"
+    ],
+    "ecosystem_binding": [],
+    "pricing_model": "按量付费 + 开源",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "免费额度"
+    },
+    "mcp_support": "partial",
+    "multi_agent": "native",
+    "visual_builder": "native",
+    "private_deploy": "supported",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2024-01-01",
+    "last_updated": "2026-04-17",
+    "notes": "GLM-5.1发布，AutoClaw自进化机制让Agent越用越聪明",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "智谱AutoClaw上线自进化机制，Agent越用越聪明",
+        "date": "2026-04-17",
+        "summary": "智谱发布AutoClaw自进化机制，Agent可在执行任务中持续沉淀经验、自动优化Prompt和工具调用策略。",
+        "source_url": "https://chatglm.cn/"
+      },
+      {
+        "title": "智谱GLM-4.6V开源，多模态Agent能力大幅增强",
+        "date": "2026-04-10",
+        "summary": "智谱开源GLM-4.6V多模态模型，视觉理解与Agent任务规划能力显著提升，支持本地部署保障数据安全。",
+        "source_url": "https://github.com/THUDM/"
+      },
+      {
+        "title": "智谱AutoGLM手机操作Agent开源，AI可自主操控手机App",
+        "date": "2026-03-05",
+        "summary": "智谱开源AutoGLM手机操作Agent，AI可自主操控手机App执行任务，覆盖主流社交/购物/出行应用场景。",
+        "source_url": "https://github.com/THUDM/AutoGLM"
+      }
+    ]
+  },
+  {
+    "id": "minimax-agent-builder",
+    "name": "MiniMax Agent Builder",
+    "vendor": "MiniMax",
+    "region": "domestic",
+    "tier": "professional",
+    "positioning": "多模态情感计算优势，自定义人设功能强大，拟人化Agent首选",
+    "deployment": [
+      "saas"
+    ],
+    "core_capabilities": [
+      "voice",
+      "tool-integration",
+      "visual-workflow"
+    ],
+    "model_support": [
+      "minimax"
+    ],
+    "ecosystem_binding": [],
+    "pricing_model": "按量付费",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "免费额度"
+    },
+    "mcp_support": "none",
+    "multi_agent": "partial",
+    "visual_builder": "native",
+    "private_deploy": "none",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2024-04-01",
+    "last_updated": "2026-05-09",
+    "notes": "5月9日修复M2系列4.9% token退化，推出10x Team计划，DeepSeek-V4冲击股价腰斩",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "MiniMax Agent发布MaxHermes云端AI助手，支持自我进化",
+        "date": "2026-04-16",
+        "summary": "MiniMax Agent上线MaxHermes云端AI助手，基于Hermes Agent构建，支持自进化Skills系统、跨会话持久记忆和自然语言定时任务。",
+        "source_url": "https://agent.minimaxi.com/docs/changelog"
+      },
+      {
+        "title": "MiniMax Agent桌面端上线，支持本地工作空间和浏览器代理",
+        "date": "2026-01-19",
+        "summary": "MiniMax Agent发布Mac/Windows桌面端，用户可选择本地工作空间让Agent读取和批量处理文件，新增专家功能和自定义指令。",
+        "source_url": "https://agent.minimaxi.com/docs/changelog"
+      },
+      {
+        "title": "MiniMax ARR超1.5亿美元，开放平台新注册用户暴增4倍",
+        "date": "2026-03-02",
+        "summary": "MiniMax发布上市后首份年报，2026年2月ARR超1.5亿美元，开放平台新注册用户数为2025年12月的4倍以上，毛利率翻倍至25.4%。",
+        "source_url": "http://m.toutiao.com/group/7613286376452178482/"
+      }
+    ]
+  },
+  {
+    "id": "ant-agentar",
+    "name": "蚂蚁数科Agentar",
+    "vendor": "蚂蚁集团",
+    "region": "domestic",
+    "tier": "professional",
+    "positioning": "金融级可信智能体平台，长思维链+全链路数据治理，信通院最高5级评估",
+    "deployment": [
+      "saas",
+      "hybrid"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "rag",
+      "tool-integration",
+      "persistent-memory"
+    ],
+    "model_support": [
+      "ant-model",
+      "qwen"
+    ],
+    "ecosystem_binding": [
+      "alipay",
+      "ant-cloud"
+    ],
+    "pricing_model": "企业版定制",
+    "pricing_detail": {
+      "free_tier": false,
+      "enterprise": "custom"
+    },
+    "mcp_support": "native",
+    "multi_agent": "native",
+    "visual_builder": "native",
+    "private_deploy": "supported",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2025-03-01",
+    "last_updated": "2026-04-01",
+    "notes": "十万级长思维链标注数据，信贷审批从3天缩至15分钟。金融/政务强监管场景首选",
+    "source_urls": [
+      "https://www.cet.com.cn/xwsd/10318779.shtml"
+    ],
+    "recent_news": [
+      {
+        "title": "蚂蚁Agentar发布四车间架构，金融MCP广场上线",
+        "date": "2026-04-15",
+        "summary": "蚂蚁数科Agentar发布四车间架构（感知/规划/执行/反思），上线金融MCP广场，原生支持MCP协议，长思维链能力增强。",
+        "source_url": "https://www.cet.com.cn/xwsd/10318779.shtml"
+      },
+      {
+        "title": "蚂蚁Agentar获信通院最高5级评估，金融级可信智能体认证",
+        "date": "2026-03-20",
+        "summary": "蚂蚁Agentar通过信通院智能体平台最高5级评估，十万级长思维链标注数据支撑，信贷审批从3天缩至15分钟。",
+        "source_url": "https://www.cet.com.cn/xwsd/10318779.shtml"
+      },
+      {
+        "title": "蚂蚁Agentar发布全链路数据治理方案，金融/政务场景首选",
+        "date": "2026-02-15",
+        "summary": "Agentar发布全链路数据治理方案，支持金融级数据脱敏与审计控制，私有化部署能力增强，成为强监管场景首选平台。",
+        "source_url": "https://www.antgroup.com/"
+      }
+    ]
+  },
+  {
+    "id": "shizaiai-agent",
+    "name": "实在Agent",
+    "vendor": "实在智能",
+    "region": "domestic",
+    "tier": "professional",
+    "positioning": "RPA+大模型融合的'第三代数字员工'，零代码'所言即所得'，国产信创适配",
+    "deployment": [
+      "saas",
+      "hybrid"
+    ],
+    "core_capabilities": [
+      "rpa",
+      "visual-workflow",
+      "tool-integration",
+      "scheduled-tasks"
+    ],
+    "model_support": [
+      "openai",
+      "qwen",
+      "chatglm"
+    ],
+    "ecosystem_binding": [],
+    "pricing_model": "企业版定制",
+    "pricing_detail": {
+      "free_tier": false,
+      "enterprise": "custom"
+    },
+    "mcp_support": "none",
+    "multi_agent": "partial",
+    "visual_builder": "native",
+    "private_deploy": "supported",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2023-09-01",
+    "last_updated": "2026-03-01",
+    "notes": "AI+RPA深度融合，动态自愈自我修复，支持鸿蒙/麒麟系统。制造业/流程自动化强",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "实在Agent升级第三代数字员工，动态自愈与鸿蒙/麒麟适配",
+        "date": "2026-03-10",
+        "summary": "实在Agent升级第三代数字员工平台，新增动态自愈自我修复能力，全面适配鸿蒙/麒麟国产系统，制造业流程自动化场景增强。",
+        "source_url": "https://www.shizaiai.com/"
+      },
+      {
+        "title": "实在智能RPA+大模型深度融合，零代码'所言即所得'升级",
+        "date": "2026-01-15",
+        "summary": "实在Agent实现RPA与大模型深度融合，用户通过自然语言即可驱动RPA操作，零代码'所言即所得'体验大幅提升。",
+        "source_url": "https://www.shizaiai.com/"
+      },
+      {
+        "title": "实在Agent信创适配加速，金融/政务私有化部署案例突破",
+        "date": "2025-11-20",
+        "summary": "实在Agent在金融/政务信创场景私有化部署案例突破50个，支持物理机/K8s/信创环境全栈适配。",
+        "source_url": "https://www.shizaiai.com/"
+      }
+    ]
+  },
+  {
+    "id": "betteryeah-ai",
+    "name": "BetterYeah AI",
+    "vendor": "BetterYeah",
+    "region": "domestic",
+    "tier": "professional",
+    "positioning": "私有化部署Agent应用，中型企业数据安全需求，灵活定制+持续运维",
+    "deployment": [
+      "saas",
+      "hybrid"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "visual-workflow",
+      "tool-integration",
+      "rag"
+    ],
+    "model_support": [
+      "qwen",
+      "doubao",
+      "openai"
+    ],
+    "ecosystem_binding": [],
+    "pricing_model": "订阅制 + 私有化部署",
+    "pricing_detail": {
+      "free_tier": false,
+      "starting_price": "Contact"
+    },
+    "mcp_support": "partial",
+    "multi_agent": "native",
+    "visual_builder": "native",
+    "private_deploy": "supported",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2024-06-01",
+    "last_updated": "2026-03-01",
+    "notes": "开箱即用Multi-Agent，私有化部署能力强，适合对数据安全有要求的中型企业",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "BetterYeah AI国内首家上线A2A服务，Multi-Agent协同能力升级",
+        "date": "2025-07-03",
+        "summary": "BetterYeah AI成为国内首个上线A2A服务的Agent平台，支持Agent发布为A2A服务跨平台互操作，同步升级多Agent搭建和语音交互。",
+        "source_url": "https://ai-docs.betteryeah.com/%E6%9B%B4%E6%96%B0%E6%97%A5%E5%BF%97/2025-07-03%20%E6%9B%B4%E6%96%B0%E6%97%A5%E5%BF%97.html"
+      },
+      {
+        "title": "BetterYeah AI联合阿里云推出零售电商行业AI智能体解决方案",
+        "date": "2025-09-28",
+        "summary": "BetterYeah AI与阿里云在云栖大会联合推出零售电商AI智能体方案，深度融合通义千问模型，服务近10万家企业团队。",
+        "source_url": "http://m.toutiao.com/group/7555064454150160948/"
+      },
+      {
+        "title": "BetterYeah AI发布2026企业级多智能体选型指南，等保三级+私有化部署",
+        "date": "2026-04-16",
+        "summary": "BetterYeah AI发布企业级多智能体平台选型指南，通过ISO27001/等保三级认证，NeuroFlow+VisionRAG双引擎架构，支持A2A/MCP协议。",
+        "source_url": "https://www.betteryeah.com/blog/2026-enterprise-multi-agent-platform-selection-guide"
+      }
+    ]
+  },
+  {
+    "id": "feishu-agent-builder",
+    "name": "飞书 Agent Builder",
+    "vendor": "字节跳动",
+    "region": "domestic",
+    "tier": "professional",
+    "positioning": "飞书生态深度集成，会议纪要/报销审核/工单流转等内部协作场景一键适配",
+    "deployment": [
+      "saas"
+    ],
+    "core_capabilities": [
+      "tool-integration",
+      "scheduled-tasks",
+      "visual-workflow"
+    ],
+    "model_support": [
+      "doubao",
+      "qwen"
+    ],
+    "ecosystem_binding": [
+      "feishu"
+    ],
+    "pricing_model": "飞书订阅内含",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "飞书订阅内含"
+    },
+    "mcp_support": "none",
+    "multi_agent": "partial",
+    "visual_builder": "native",
+    "private_deploy": "none",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2024-09-01",
+    "last_updated": "2026-05-07",
+    "notes": "5月7日发布AI会员定价，OpenClaw 48小时连发三版修复80+问题",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "飞书aily升级企业级Agent产品，3月19日正式发布",
+        "date": "2026-03-19",
+        "summary": "飞书aily正式升级为企业级Agent产品，深度集成飞书会议/文档/审批等协作场景，支持自然语言创建自动化流程。",
+        "source_url": "https://www.feishu.cn/"
+      },
+      {
+        "title": "飞书Agent Builder上线OpenClaw官方插件，数据安全不出域",
+        "date": "2026-03-19",
+        "summary": "飞书Agent Builder接入OpenClaw官方插件，通过安全沙箱和本地化一体机确保企业数据不上网，满足合规要求。",
+        "source_url": "https://www.feishu.cn/"
+      },
+      {
+        "title": "飞书AI先锋大赛启动，鼓励Agent创新应用开发",
+        "date": "2026-04-22",
+        "summary": "飞书联合多方启动AI先锋大赛，鼓励开发者在飞书Agent Builder上构建创新Agent应用，获奖项目获飞书生态推广资源。",
+        "source_url": "https://www.feishu.cn/"
+      }
+    ]
+  },
+  {
+    "id": "doubao-agent-studio",
+    "name": "豆包 Agent Studio",
+    "vendor": "字节跳动",
+    "region": "domestic",
+    "tier": "professional",
+    "positioning": "抖音集团创作利器，短视频脚本/直播话术/粉丝互动等原生能力",
+    "deployment": [
+      "saas"
+    ],
+    "core_capabilities": [
+      "visual-workflow",
+      "tool-integration",
+      "voice"
+    ],
+    "model_support": [
+      "doubao"
+    ],
+    "ecosystem_binding": [
+      "douyin",
+      "tiktok"
+    ],
+    "pricing_model": "按量付费",
+    "pricing_detail": {
+      "free_tier": true,
+      "starting_price": "免费额度"
+    },
+    "mcp_support": "none",
+    "multi_agent": "partial",
+    "visual_builder": "native",
+    "private_deploy": "none",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2024-06-01",
+    "last_updated": "2026-03-01",
+    "notes": "内容创作场景垂直深耕，与Coze同属字节但定位不同",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "豆包Seed 2.0全模态理解模型上线，支持视频/图像/音频统一理解",
+        "date": "2026-05-06",
+        "summary": "火山引擎发布Doubao-Seed-2.0-lite全模态模型，原生支持视频/图像/音频/文本统一理解，Agent/Coding/GUI能力同步升级。",
+        "source_url": "https://m.mydrivers.com/newsview/1120448.html"
+      },
+      {
+        "title": "豆包Seed 2.0系列正式发布：Pro/Lite/Mini三档Agent模型",
+        "date": "2026-02-14",
+        "summary": "字节Seed团队发布Seed 2.0系列，提供Pro/Lite/Mini三款Agent模型和Code专用模型，多模态理解与复杂指令执行能力全面升级。",
+        "source_url": "https://research.doubao.com/zh/blog/seed-2-0-official-launch"
+      },
+      {
+        "title": "豆包月活达3.45亿，内容创作Agent生态持续扩展",
+        "date": "2026-03-15",
+        "summary": "豆包月活用户达3.45亿，Agent Studio内容创作生态持续扩展，短视频脚本/直播话术等创作场景模板增长200%。",
+        "source_url": "https://www.doubao.com/"
+      }
+    ]
+  },
+  {
+    "id": "bizfocus-adp",
+    "name": "Bizfocus ADP",
+    "vendor": "Bizfocus",
+    "region": "domestic",
+    "tier": "emerging",
+    "positioning": "2026年企业级市场黑马，可视化Flow GUI+私有化部署，部署周期2-3周",
+    "deployment": [
+      "saas",
+      "hybrid"
+    ],
+    "core_capabilities": [
+      "visual-workflow",
+      "multi-agent",
+      "tool-integration"
+    ],
+    "model_support": [
+      "qwen",
+      "openai"
+    ],
+    "ecosystem_binding": [],
+    "pricing_model": "企业版定制",
+    "pricing_detail": {
+      "free_tier": false,
+      "enterprise": "custom"
+    },
+    "mcp_support": "none",
+    "multi_agent": "native",
+    "visual_builder": "native",
+    "private_deploy": "supported",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2025-09-01",
+    "last_updated": "2026-04-01",
+    "notes": "2026年爆发态势，部署周期从2-3个月压缩到2-3周",
+    "source_urls": [
+      "https://juejin.cn/post/7630746111230443526"
+    ],
+    "recent_news": [
+      {
+        "title": "Bizfocus ADP获51CTO深度评测认可，国产化企业级智能体标杆",
+        "date": "2026-04-30",
+        "summary": "51CTO发布2026年国内主流AI Agent平台深度评测，Bizfocus ADP凭全栈国产化适配、私有化Agent编排和Hybrid RAG技术获国产自研标杆评价。",
+        "source_url": "https://blog.51cto.com/u_17680712/14578505"
+      },
+      {
+        "title": "Bizfocus ADP部署周期压缩至2-3周，Low-Code复杂业务流编排上线",
+        "date": "2026-03-15",
+        "summary": "Bizfocus ADP将企业Agent部署周期从2-3个月压缩至2-3周，新增Low-Code可视化编排支持复杂业务逻辑，深度集成ERP/CRM系统。",
+        "source_url": "https://juejin.cn/post/7630746111230443526"
+      },
+      {
+        "title": "Bizfocus ADP发布Chain-of-Thought推理链路与状态机控制",
+        "date": "2026-02-20",
+        "summary": "ADP支持开发者在智能体决策路径中注入逻辑检查点，实现CoT推理链路与状态机控制，减少大模型幻觉，增强企业级可靠性。",
+        "source_url": "https://blog.51cto.com/u_17680712/14578505"
+      }
+    ]
+  },
+  {
+    "id": "volcengine-agent-plan",
+    "name": "火山引擎 Agent Plan",
+    "vendor": "字节跳动（火山引擎）",
+    "region": "domestic",
+    "tier": "ecosystem",
+    "positioning": "模型+工具链订阅制平台，整合多模态模型与Harness工具，含字节自研及主流三方SOTA模型",
+    "deployment": [
+      "saas"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "tool-integration",
+      "code-execution",
+      "mcp"
+    ],
+    "model_support": [
+      "doubao",
+      "gpt-4o",
+      "claude",
+      "qwen",
+      "kimi",
+      "主流三方SOTA模型"
+    ],
+    "ecosystem_binding": [
+      "volcengine",
+      "douyin",
+      "feishu"
+    ],
+    "pricing_model": "阶梯订阅 + 企业版",
+    "pricing_detail": {
+      "free_tier": false,
+      "starting_price": "订阅制",
+      "enterprise": "custom"
+    },
+    "mcp_support": "native",
+    "multi_agent": "native",
+    "visual_builder": "partial",
+    "private_deploy": "limited",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2026-05-11",
+    "last_updated": "2026-05-11",
+    "notes": "字节系新布局，从Coze平台层往模型+工具链层全栈覆盖的信号",
+    "source_urls": [
+      "待补充"
+    ],
+    "recent_news": [
+      {
+        "title": "火山引擎Agent Plan发布，整合多模态模型与Harness工具",
+        "date": "2026-05-11",
+        "summary": "火山引擎在原编程模型订阅基础上，整合多模态模型、Harness工具，含字节自研及主流三方SOTA模型，设阶梯订阅与企业版，支持多模态任务，可降低开发门槛。",
+        "source_url": "待补充"
+      }
+    ]
+  },
+  {
+    "id": "360-longxia",
+    "name": "360安全龙虾",
+    "vendor": "360集团",
+    "region": "domestic",
+    "tier": "professional",
+    "positioning": "安全+AI智能体平台，龙虾计划向全员提供1亿Token，推动员工从使用AI工具升级为带领AI团队工作",
+    "deployment": [
+      "saas"
+    ],
+    "core_capabilities": [
+      "multi-agent",
+      "tool-integration",
+      "security",
+      "scheduled-tasks"
+    ],
+    "model_support": [
+      "360-model"
+    ],
+    "ecosystem_binding": [
+      "360-security"
+    ],
+    "pricing_model": "企业内测 + Token配额制",
+    "pricing_detail": {
+      "free_tier": false,
+      "starting_price": "企业内供"
+    },
+    "mcp_support": "planned",
+    "multi_agent": "partial",
+    "visual_builder": "native",
+    "private_deploy": "none",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2026-05-12",
+    "last_updated": "2026-05-12",
+    "notes": "360集团推出龙虾计划，向全体员工账户自动充值1亿Token，公司筹备推出龙虾教练指导员工高效使用AI智能体",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "360集团推出龙虾计划，向全员提供1亿Token",
+        "date": "2026-05-12",
+        "summary": "360集团推出龙虾计划，向全体员工账户自动充值1亿Token，可用于360安全龙虾AI智能体平台全场景使用。该计划旨在推动员工从使用AI工具升级为带领AI团队工作，同时公司筹备推出龙虾教练指导员工高效使用AI智能体。",
+        "source_url": "待补充"
+      }
+    ]
+  },
+  {
+    "id": "hermes-agent-openrouter",
+    "name": "Hermes Agent",
+    "vendor": "MiniMax / OpenRouter生态",
+    "region": "international",
+    "tier": "professional",
+    "positioning": "专业级编程Agent，运行于OpenRouter平台，登顶全球Token消耗榜首，获最热门编程Agent榜首",
+    "deployment": [
+      "saas"
+    ],
+    "core_capabilities": [
+      "code-execution",
+      "multi-agent",
+      "persistent-memory",
+      "tool-integration"
+    ],
+    "model_support": [
+      "hermes"
+    ],
+    "ecosystem_binding": [
+      "openrouter"
+    ],
+    "pricing_model": "按Token消耗计费（OpenRouter平台）",
+    "pricing_detail": {
+      "free_tier": false,
+      "starting_price": "usage-based"
+    },
+    "mcp_support": "partial",
+    "multi_agent": "partial",
+    "visual_builder": "none",
+    "private_deploy": "none",
+    "status": "active",
+    "github_stars": null,
+    "first_seen": "2026-05-09",
+    "last_updated": "2026-05-09",
+    "notes": "登顶OpenRouter全球Token消耗总榜第一，单日消耗2710亿Token，累计消耗超6.37万亿，超过OpenClaw。获平台最热门编程Agent榜首。",
+    "source_urls": [],
+    "recent_news": [
+      {
+        "title": "Hermes Agent登顶OpenRouter全球Token消耗榜首",
+        "date": "2026-05-09",
+        "summary": "Hermes Agent登顶OpenRouter全球Token消耗总榜第一，单日消耗2710亿Token，累计消耗超6.37万亿，超过OpenClaw。此前还获得该平台最热门编程Agent榜首。",
+        "source_url": "待补充"
+      }
+    ]
+  }
+];
+
+// ============================================================
+// 工具函数
+// ============================================================
+
+/** 部署模式开放度评分：开源=4, 混合=3, SaaS=2, self-hosted=2 */
+function deploymentOpenness(deployment) {
+  if (!deployment || !deployment.length) return 1;
+  const scores = deployment.map(d => {
+    switch(d) {
+      case 'open-source': return 4;
+      case 'hybrid': return 3;
+      case 'saas': return 2;
+      case 'self-hosted': return 2;
+      default: return 1;
+    }
+  });
+  return Math.max(...scores);
+}
+
+/** 生态绑定程度（用于气泡大小） */
+function ecosystemScore(platform) {
+  const bindings = platform.ecosystem_binding ? platform.ecosystem_binding.length : 0;
+  const caps = platform.core_capabilities ? platform.core_capabilities.length : 0;
+  return bindings + caps * 0.5;
+}
+
+/** 梯队中文名 */
+function tierLabel(t) {
+  switch(t) {
+    case 'ecosystem': return '生态级';
+    case 'professional': return '专业级';
+    case 'emerging': return '新兴';
+    default: return t;
+  }
+}
+
+/** 能力状态徽章 */
+function statusBadge(val, type) {
+  const map = {
+    'native': 'badge-native',
+    'partial': 'badge-partial',
+    'none': 'badge-none',
+    'planned': 'badge-planned',
+    'supported': 'badge-supported',
+    'limited': 'badge-limited',
+    'ecosystem': 'badge-ecosystem',
+    'professional': 'badge-professional',
+    'emerging': 'badge-emerging',
+    'international': 'badge-international',
+    'domestic': 'badge-domestic',
+  };
+  const label = type === 'tier' ? tierLabel(val) :
+                type === 'region' ? (val === 'international' ? '国际' : '国内') : val;
+  return `<span class="badge ${map[val] || 'badge-none'}">${label}</span>`;
+}
+
+/** 部署模式标签 */
+function deployBadges(deploy) {
+  return deploy.map(d => `<span class="badge badge-deploy">${d}</span>`).join(' ');
+}
+
+// ============================================================
+// 1. KPI Cards
+// ============================================================
+function renderKPIs() {
+  const total = PLATFORMS.length;
+  const intl = PLATFORMS.filter(p => p.region === 'international').length;
+  const dom = PLATFORMS.filter(p => p.region === 'domestic').length;
+  const mcp = PLATFORMS.filter(p => p.mcp_support === 'native').length;
+
+  // 动画计数器
+  function animate(el, target) {
+    let current = 0;
+    const step = Math.ceil(target / 30);
+    const timer = setInterval(() => {
+      current += step;
+      if (current >= target) { current = target; clearInterval(timer); }
+      el.textContent = current;
+    }, 30);
+  }
+
+  animate(document.getElementById('kpiTotal'), total);
+  animate(document.getElementById('kpiInternational'), intl);
+  animate(document.getElementById('kpiDomestic'), dom);
+  animate(document.getElementById('kpiMCP'), mcp);
+}
+
+// ============================================================
+// 2. 格局全景图（气泡图）
+// ============================================================
+function renderLandscapeChart() {
+  const canvas = document.getElementById('landscapeChart');
+  const ctx = canvas.getContext('2d');
+  const container = canvas.parentElement;
+  const tooltip = document.getElementById('landscapeTooltip');
+
+  // 准备数据
+  const data = PLATFORMS.map(p => ({
+    x: deploymentOpenness(p.deployment),
+    y: p.core_capabilities ? p.core_capabilities.length : 0,
+    r: Math.max(6, Math.sqrt(ecosystemScore(p)) * 4),
+    name: p.name,
+    vendor: p.vendor,
+    tier: p.tier,
+    region: p.region,
+    capabilities: p.core_capabilities,
+    mcp: p.mcp_support,
+    positioning: p.positioning
+  }));
+
+  const intlData = data.filter(d => d.region === 'international');
+  const domData = data.filter(d => d.region === 'domestic');
+
+  new Chart(ctx, {
+    type: 'bubble',
+    data: {
+      datasets: [
+        {
+          label: '国际平台',
+          data: intlData,
+          backgroundColor: 'rgba(0, 212, 255, 0.4)',
+          borderColor: 'rgba(0, 212, 255, 0.8)',
+          borderWidth: 1.5,
+          hoverBackgroundColor: 'rgba(0, 212, 255, 0.6)',
+          hoverBorderWidth: 2
+        },
+        {
+          label: '国内平台',
+          data: domData,
+          backgroundColor: 'rgba(255, 107, 53, 0.4)',
+          borderColor: 'rgba(255, 107, 53, 0.8)',
+          borderWidth: 1.5,
+          hoverBackgroundColor: 'rgba(255, 107, 53, 0.6)',
+          hoverBorderWidth: 2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { top: 10, right: 20, bottom: 10, left: 10 } },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: '部署模式开放度 →',
+            color: '#9ca3af',
+            font: { size: 12 }
+          },
+          min: 1,
+          max: 5,
+          ticks: {
+            stepSize: 1,
+            color: '#6b7280',
+            font: { size: 10 },
+            callback: v => ['', '私有化', 'SaaS', '混合', '开源', ''][v] || ''
+          },
+          grid: { color: 'rgba(255,255,255,0.04)' }
+        },
+        y: {
+          title: {
+            display: true,
+            text: '能力丰富度（核心能力数） →',
+            color: '#9ca3af',
+            font: { size: 12 }
+          },
+          min: 0,
+          ticks: {
+            stepSize: 1,
+            color: '#6b7280',
+            font: { size: 10 }
+          },
+          grid: { color: 'rgba(255,255,255,0.04)' }
+        }
+      },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            color: '#9ca3af',
+            font: { size: 11 },
+            usePointStyle: true,
+            pointStyle: 'circle',
+            padding: 16
+          }
+        },
+        tooltip: {
+          enabled: false,
+          external: function(context) {
+            const point = context.tooltip?.dataPoints?.[0];
+            if (!point) {
+              tooltip.style.display = 'none';
+              return;
+            }
+            const d = point.raw;
+            const rect = container.getBoundingClientRect();
+            const canvasRect = canvas.getBoundingClientRect();
+            const posX = context.tooltip.caretX;
+            const posY = context.tooltip.caretY;
+
+            tooltip.querySelector('.tip-name').textContent = d.name;
+            tooltip.querySelector('.tip-vendor').textContent = `厂商：${d.vendor}`;
+            tooltip.querySelector('.tip-tier').textContent = `梯队：${tierLabel(d.tier)} | MCP：${d.mcp}`;
+            tooltip.querySelector('.tip-capabilities').textContent = `能力数：${d.capabilities ? d.capabilities.length : 0}`;
+            tooltip.style.display = 'block';
+            // 定位
+            let left = posX + 12;
+            let top = posY - 10;
+            if (left + 280 > canvas.clientWidth) left = posX - 290;
+            if (top + 100 > canvas.clientHeight) top = posY - 100;
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = top + 'px';
+          }
+        }
+      }
+    }
+  });
+}
+
+// ============================================================
+// 3. 能力雷达图
+// ============================================================
+function renderRadarChart() {
+  const ctx = document.getElementById('radarChart').getContext('2d');
+
+  const dimensions = [
+    'multi-agent', 'mcp', 'visual-workflow', 'rag',
+    'code-execution', 'persistent-memory', 'scheduled-tasks',
+    'human-in-loop', 'voice', 'rpa', 'browser-automation', 'a2a'
+  ];
+  const labels = [
+    '多Agent', 'MCP', '可视化构建', 'RAG',
+    '代码执行', '持久记忆', '定时任务',
+    '人机协作', '语音', 'RPA', '浏览器自动化', 'A2A'
+  ];
+
+  const counts = dimensions.map(dim =>
+    PLATFORMS.filter(p => p.core_capabilities && p.core_capabilities.includes(dim)).length
+  );
+
+  new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: '支持平台数',
+        data: counts,
+        backgroundColor: 'rgba(0, 212, 255, 0.15)',
+        borderColor: 'rgba(0, 212, 255, 0.8)',
+        borderWidth: 2,
+        pointBackgroundColor: 'rgba(0, 212, 255, 1)',
+        pointBorderColor: '#0a0e17',
+        pointBorderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        r: {
+          beginAtZero: true,
+          max: Math.max(...counts) + 2,
+          ticks: {
+            stepSize: 3,
+            color: '#6b7280',
+            backdropColor: 'transparent',
+            font: { size: 9 }
+          },
+          pointLabels: {
+            color: '#9ca3af',
+            font: { size: 10.5 }
+          },
+          grid: { color: 'rgba(255,255,255,0.06)' },
+          angleLines: { color: 'rgba(255,255,255,0.06)' }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(10,14,23,0.95)',
+          borderColor: 'rgba(0,212,255,0.3)',
+          borderWidth: 1,
+          titleColor: '#00d4ff',
+          bodyColor: '#e5e7eb',
+          padding: 10,
+          callbacks: {
+            label: function(context) {
+              return `${context.label}：${context.raw} 个平台支持`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// ============================================================
+// 4. 部署模式分布（环形图）
+// ============================================================
+function renderDeployChart() {
+  const ctx = document.getElementById('deployChart').getContext('2d');
+
+  // 统计每种部署模式（一个平台可能有多种，分别计数）
+  const deployCounts = {};
+  PLATFORMS.forEach(p => {
+    p.deployment.forEach(d => {
+      deployCounts[d] = (deployCounts[d] || 0) + 1;
+    });
+  });
+
+  const deployLabels = {
+    'saas': 'SaaS',
+    'open-source': '开源',
+    'hybrid': '混合部署',
+    'self-hosted': '私有化部署'
+  };
+
+  const keys = Object.keys(deployCounts).sort((a,b) => deployCounts[b] - deployCounts[a]);
+  const labels = keys.map(k => deployLabels[k] || k);
+  const values = keys.map(k => deployCounts[k]);
+  const colors = ['#00d4ff', '#a855f7', '#00ff88', '#fbbf24', '#ff6b35'];
+
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors.slice(0, keys.length).map(c => c + '80'),
+        borderColor: colors.slice(0, keys.length),
+        borderWidth: 2,
+        hoverBorderWidth: 3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '60%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: '#9ca3af',
+            font: { size: 11 },
+            padding: 12,
+            usePointStyle: true
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(10,14,23,0.95)',
+          borderColor: 'rgba(0,212,255,0.3)',
+          borderWidth: 1,
+          titleColor: '#00d4ff',
+          bodyColor: '#e5e7eb',
+          callbacks: {
+            label: function(context) {
+              return `${context.label}：${context.raw} 个平台`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// ============================================================
+// 5. 梯队对比表
+// ============================================================
+let currentFilter = 'all';
+
+function renderTable(filter) {
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+
+  let filtered = PLATFORMS;
+  if (filter === 'ecosystem' || filter === 'professional' || filter === 'emerging') {
+    filtered = PLATFORMS.filter(p => p.tier === filter);
+  } else if (filter === 'international' || filter === 'domestic') {
+    filtered = PLATFORMS.filter(p => p.region === filter);
+  }
+
+  filtered.forEach(p => {
+    // 主行
+    const tr = document.createElement('tr');
+    tr.className = 'main-row';
+    tr.onclick = () => toggleDetail(p.id);
+    tr.innerHTML = `
+      <td style="font-weight:600; white-space:nowrap;">${p.name}</td>
+      <td style="white-space:nowrap;">${p.vendor}</td>
+      <td>${statusBadge(p.tier, 'tier')}</td>
+      <td>${statusBadge(p.region, 'region')}</td>
+      <td>${deployBadges(p.deployment)}</td>
+      <td>${statusBadge(p.multi_agent)}</td>
+      <td>${statusBadge(p.mcp_support)}</td>
+      <td>${statusBadge(p.visual_builder)}</td>
+      <td>${statusBadge(p.private_deploy)}</td>
+      <td style="font-size:0.75rem;color:var(--text-secondary);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.pricing_model}">${p.pricing_model}</td>
+    `;
+    tbody.appendChild(tr);
+
+    // 详情行
+    const detailTr = document.createElement('tr');
+    detailTr.className = 'detail-row';
+    detailTr.id = `detail-${p.id}`;
+    detailTr.innerHTML = `
+      <td colspan="10">
+        <div class="detail-content" id="detail-content-${p.id}">
+          <div style="margin-bottom:10px;">
+            <span style="color:var(--accent-cyan);font-weight:600;">定位：</span>
+            <span style="color:var(--text-secondary);">${p.positioning}</span>
+          </div>
+          <div style="margin-bottom:10px;">
+            <span style="color:var(--accent-cyan);font-weight:600;">核心能力：</span>
+            <span style="color:var(--text-secondary);">${p.core_capabilities.join(', ')}</span>
+          </div>
+          <div style="margin-bottom:10px;">
+            <span style="color:var(--accent-cyan);font-weight:600;">模型支持：</span>
+            <span style="color:var(--text-secondary);">${p.model_support.join(', ')}</span>
+          </div>
+          ${p.notes ? `<div style="margin-bottom:10px;">
+            <span style="color:var(--accent-cyan);font-weight:600;">备注：</span>
+            <span style="color:var(--text-secondary);">${p.notes}</span>
+          </div>` : ''}
+          ${p.recent_news && p.recent_news.length ? `
+          <div>
+            <span style="color:var(--accent-cyan);font-weight:600;">近期动态：</span>
+            <ul style="margin-top:6px;padding-left:18px;color:var(--text-secondary);font-size:0.8rem;line-height:1.8;">
+              ${p.recent_news.map(n => `<li><span style="color:var(--text-dim);">${n.date}</span> ${n.title}</li>`).join('')}
+            </ul>
+          </div>` : ''}
+        </div>
+      </td>
+    `;
+    tbody.appendChild(detailTr);
+  });
+}
+
+function toggleDetail(id) {
+  const el = document.getElementById(`detail-content-${id}`);
+  if (el) el.classList.toggle('open');
+}
+
+function filterTable(filter, btn) {
+  currentFilter = filter;
+  // 更新按钮状态
+  document.querySelectorAll('#tableFilters .filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderTable(filter);
+}
+
+// ============================================================
+// 6. 最新动态时间线
+// ============================================================
+function renderTimeline() {
+  const container = document.getElementById('timelineContainer');
+
+  // 汇总所有新闻，附加平台信息
+  let allNews = [];
+  PLATFORMS.forEach(p => {
+    if (p.recent_news) {
+      p.recent_news.forEach(n => {
+        allNews.push({
+          ...n,
+          platformName: p.name,
+          platformId: p.id,
+          region: p.region
+        });
+      });
+    }
+  });
+
+  // 按日期倒序
+  allNews.sort((a, b) => b.date.localeCompare(a.date));
+
+  // 取最近30条
+  const recent = allNews.slice(0, 30);
+
+  container.innerHTML = recent.map((n, i) => `
+    <div class="timeline-item">
+      <div class="timeline-date">${n.date}</div>
+      <div class="timeline-platform">
+        ${n.region === 'domestic' ? '🔴' : '🔵'} ${n.platformName}
+      </div>
+      <div class="timeline-title" onclick="toggleTimelineSummary(${i})">${n.title}</div>
+      <div class="timeline-summary" id="tl-summary-${i}">${n.summary}</div>
+      ${n.source_url ? `<div class="timeline-source"><a href="${n.source_url}" target="_blank" rel="noopener">查看来源 ↗</a></div>` : ''}
+    </div>
+  `).join('');
+}
+
+function toggleTimelineSummary(idx) {
+  const el = document.getElementById(`tl-summary-${idx}`);
+  if (el) el.classList.toggle('open');
+}
+
+// ============================================================
+// 7. 协议采纳状态（横向条形图）
+// ============================================================
+function renderProtocolChart() {
+  const ctx = document.getElementById('protocolChart').getContext('2d');
+
+  // MCP 支持状态
+  const mcpStatus = { native: 0, partial: 0, none: 0, planned: 0 };
+  PLATFORMS.forEach(p => { mcpStatus[p.mcp_support] = (mcpStatus[p.mcp_support] || 0) + 1; });
+
+  // A2A 支持状态（从 core_capabilities 中判断）
+  const a2aStatus = { native: 0, partial: 0, none: 0, planned: 0 };
+  PLATFORMS.forEach(p => {
+    if (p.core_capabilities && p.core_capabilities.includes('a2a')) {
+      a2aStatus.native++;
+    } else {
+      a2aStatus.none++;
+    }
+  });
+
+  const platformNames = PLATFORMS.map(p => p.name.length > 20 ? p.name.substring(0,18) + '…' : p.name);
+
+  // 每个平台的MCP状态数值映射：native=3, partial=2, planned=1, none=0
+  const mcpValues = PLATFORMS.map(p => {
+    switch(p.mcp_support) {
+      case 'native': return 3;
+      case 'partial': return 2;
+      case 'planned': return 1;
+      default: return 0;
+    }
+  });
+
+  const a2aValues = PLATFORMS.map(p => {
+    if (p.core_capabilities && p.core_capabilities.includes('a2a')) return 3;
+    return 0;
+  });
+
+  // 按 MCP 值排序
+  const indices = PLATFORMS.map((_, i) => i);
+  indices.sort((a, b) => mcpValues[b] - mcpValues[a]);
+
+  const sortedNames = indices.map(i => platformNames[i]);
+  const sortedMcp = indices.map(i => mcpValues[i]);
+  const sortedA2a = indices.map(i => a2aValues[i]);
+
+  const statusColors = {
+    3: 'rgba(0, 255, 136, 0.7)',   // native - green
+    2: 'rgba(251, 191, 36, 0.7)',   // partial - yellow
+    1: 'rgba(168, 85, 247, 0.7)',   // planned - purple
+    0: 'rgba(75, 85, 99, 0.4)'      // none - gray
+  };
+
+  // 为每个条形生成颜色数组
+  const mcpColors = sortedMcp.map(v => statusColors[v]);
+  const a2aColors = sortedA2a.map(v => statusColors[v]);
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: sortedNames,
+      datasets: [
+        {
+          label: 'MCP',
+          data: sortedMcp,
+          backgroundColor: mcpColors,
+          borderColor: mcpColors.map(c => c.replace('0.7', '1').replace('0.4', '0.6')),
+          borderWidth: 1,
+          barPercentage: 0.7,
+          categoryPercentage: 0.8
+        },
+        {
+          label: 'A2A',
+          data: sortedA2a,
+          backgroundColor: a2aColors,
+          borderColor: a2aColors.map(c => c.replace('0.7', '1').replace('0.4', '0.6')),
+          borderWidth: 1,
+          barPercentage: 0.7,
+          categoryPercentage: 0.8
+        }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          min: 0,
+          max: 3.5,
+          ticks: {
+            stepSize: 1,
+            color: '#6b7280',
+            font: { size: 10 },
+            callback: v => ['无', '规划中', '部分支持', '原生支持', ''][v] || ''
+          },
+          grid: { color: 'rgba(255,255,255,0.04)' }
+        },
+        y: {
+          ticks: {
+            color: '#9ca3af',
+            font: { size: 10 }
+          },
+          grid: { display: false }
+        }
+      },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            color: '#9ca3af',
+            font: { size: 11 },
+            usePointStyle: true,
+            padding: 16
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(10,14,23,0.95)',
+          borderColor: 'rgba(0,212,255,0.3)',
+          borderWidth: 1,
+          titleColor: '#00d4ff',
+          bodyColor: '#e5e7eb',
+          callbacks: {
+            label: function(context) {
+              const val = context.raw;
+              const label = ['不支持', '规划中', '部分支持', '原生支持'][val] || '未知';
+              return `${context.dataset.label}：${label}`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// ============================================================
+// 初始化
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+  // 更新底部日期
+  const now = new Date();
+  const dateStr = now.getFullYear() + '-' +
+    String(now.getMonth()+1).padStart(2,'0') + '-' +
+    String(now.getDate()).padStart(2,'0');
+  document.getElementById('footerDate').textContent = dateStr;
+
+  // 找最近更新日期
+  let latestDate = '2026-01-01';
+  PLATFORMS.forEach(p => {
+    if (p.last_updated && p.last_updated > latestDate) latestDate = p.last_updated;
+  });
+  document.getElementById('lastUpdateTime').textContent = `数据截至 ${latestDate}`;
+
+  // 渲染各模块
+  renderKPIs();
+  renderLandscapeChart();
+  renderRadarChart();
+  renderDeployChart();
+  renderTable('all');
+  renderTimeline();
+  renderProtocolChart();
+});
+</script>
+
+</body>
+</html>
