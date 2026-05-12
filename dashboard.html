@@ -377,9 +377,9 @@
   </div>
 
   <!-- ========== 主内容区 ========== -->
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-    <!-- 2. 格局全景图（气泡图）占 2 列 -->
-    <div class="glass-card p-5 lg:col-span-2" style="position:relative;">
+  <div class="grid grid-cols-1 gap-6 mb-6">
+    <!-- 格局全景图（气泡图） -->
+    <div class="glass-card p-5" style="position:relative;">
       <div class="section-title">格局全景图</div>
       <div class="chart-container" style="height: 420px;">
         <canvas id="landscapeChart"></canvas>
@@ -390,14 +390,6 @@
         <div class="tip-row tip-tier"></div>
         <div class="tip-row tip-capabilities"></div>
         <div class="tip-row tip-mcp"></div>
-      </div>
-    </div>
-
-    <!-- 3. 能力雷达图 -->
-    <div class="glass-card p-5">
-      <div class="section-title">能力维度覆盖</div>
-      <div class="chart-container" style="height: 420px;">
-        <canvas id="radarChart"></canvas>
       </div>
     </div>
   </div>
@@ -2605,21 +2597,21 @@ function renderLandscapeChart() {
     data: {
       datasets: [
         {
-          label: '国际平台',
-          data: intlData,
-          backgroundColor: 'rgba(0, 212, 255, 0.4)',
-          borderColor: 'rgba(0, 212, 255, 0.8)',
-          borderWidth: 1.5,
-          hoverBackgroundColor: 'rgba(0, 212, 255, 0.6)',
-          hoverBorderWidth: 2
-        },
-        {
           label: '国内平台',
           data: domData,
           backgroundColor: 'rgba(255, 107, 53, 0.4)',
           borderColor: 'rgba(255, 107, 53, 0.8)',
           borderWidth: 1.5,
           hoverBackgroundColor: 'rgba(255, 107, 53, 0.6)',
+          hoverBorderWidth: 2
+        },
+        {
+          label: '国际平台',
+          data: intlData,
+          backgroundColor: 'rgba(0, 212, 255, 0.4)',
+          borderColor: 'rgba(0, 212, 255, 0.8)',
+          borderWidth: 1.5,
+          hoverBackgroundColor: 'rgba(0, 212, 255, 0.6)',
           hoverBorderWidth: 2
         }
       ]
@@ -2699,85 +2691,6 @@ function renderLandscapeChart() {
             if (top + 100 > canvas.clientHeight) top = posY - 100;
             tooltip.style.left = left + 'px';
             tooltip.style.top = top + 'px';
-          }
-        }
-      }
-    }
-  });
-}
-
-// ============================================================
-// 3. 能力雷达图
-// ============================================================
-function renderRadarChart() {
-  const ctx = document.getElementById('radarChart').getContext('2d');
-
-  const dimensions = [
-    'multi-agent', 'mcp', 'visual-workflow', 'rag',
-    'code-execution', 'persistent-memory', 'scheduled-tasks',
-    'human-in-loop', 'voice', 'rpa', 'browser-automation', 'a2a'
-  ];
-  const labels = [
-    '多Agent', 'MCP', '可视化构建', 'RAG',
-    '代码执行', '持久记忆', '定时任务',
-    '人机协作', '语音', 'RPA', '浏览器自动化', 'A2A'
-  ];
-
-  const counts = dimensions.map(dim =>
-    PLATFORMS.filter(p => p.core_capabilities && p.core_capabilities.includes(dim)).length
-  );
-
-  new Chart(ctx, {
-    type: 'radar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: '支持平台数',
-        data: counts,
-        backgroundColor: 'rgba(0, 212, 255, 0.15)',
-        borderColor: 'rgba(0, 212, 255, 0.8)',
-        borderWidth: 2,
-        pointBackgroundColor: 'rgba(0, 212, 255, 1)',
-        pointBorderColor: '#0a0e17',
-        pointBorderWidth: 2,
-        pointRadius: 4,
-        pointHoverRadius: 6
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        r: {
-          beginAtZero: true,
-          max: Math.max(...counts) + 2,
-          ticks: {
-            stepSize: 3,
-            color: '#6b7280',
-            backdropColor: 'transparent',
-            font: { size: 9 }
-          },
-          pointLabels: {
-            color: '#9ca3af',
-            font: { size: 10.5 }
-          },
-          grid: { color: 'rgba(255,255,255,0.06)' },
-          angleLines: { color: 'rgba(255,255,255,0.06)' }
-        }
-      },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: 'rgba(10,14,23,0.95)',
-          borderColor: 'rgba(0,212,255,0.3)',
-          borderWidth: 1,
-          titleColor: '#00d4ff',
-          bodyColor: '#e5e7eb',
-          padding: 10,
-          callbacks: {
-            label: function(context) {
-              return `${context.label}：${context.raw} 个平台支持`;
-            }
           }
         }
       }
@@ -3139,7 +3052,6 @@ document.addEventListener('DOMContentLoaded', function() {
   // 渲染各模块
   renderKPIs();
   renderLandscapeChart();
-  renderRadarChart();
   renderDeployChart();
   renderTable('all');
   renderTimeline();
